@@ -82,13 +82,23 @@ public class CandidateGenerator {
     // better tight or extended; the next start resumes after the long one, keeping the count down
     // while still covering the whole video.
     private List<Candidate> window(List<Sentence> sentences) {
+        List<int[]> spans = spans(sentences);
+        List<int[]> kept = thinEvenly(spans, properties.candidates().maxCandidates());
+
+        List<Candidate> candidates = new ArrayList<>();
+        for (int[] span : kept) {
+            candidates.add(candidateOf(candidates.size(), sentences, span[0], span[1]));
+        }
+        return candidates;
+    }
+
+    private List<int[]> spans(List<Sentence> sentences) {
         double minimum = properties.candidates().minDuration().toSeconds();
         double maximum = properties.candidates().maxDuration().toSeconds();
-        int limit = properties.candidates().maxCandidates();
-        List<Candidate> candidates = new ArrayList<>();
+        List<int[]> spans = new ArrayList<>();
 
         int start = 0;
-        while (start < sentences.size() && candidates.size() < limit) {
+        while (start < sentences.size()) {
             int shortEnd = start;
             while (shortEnd < sentences.size()
                     && sentences.get(shortEnd).end() - sentences.get(start).start() < minimum) {
@@ -102,17 +112,28 @@ public class CandidateGenerator {
                     && sentences.get(longEnd + 1).end() - sentences.get(start).start() <= maximum) {
                 longEnd++;
             }
-            candidates.add(candidateOf(candidates.size(), sentences, start, shortEnd));
-            if (longEnd != shortEnd && candidates.size() < limit) {
-                candidates.add(candidateOf(candidates.size(), sentences, start, longEnd));
+            spans.add(new int[] { start, shortEnd });
+            if (longEnd != shortEnd) {
+                spans.add(new int[] { start, longEnd });
             }
             start = longEnd + 1;
         }
-        if (start < sentences.size()) {
-            log.warn("Candidate limit {} reached at {}s; the rest of the transcript was not covered",
-                    limit, sentences.get(start).start());
+        return spans;
+    }
+
+    // Sampling across the whole transcript rather than truncating: a long video would otherwise
+    // yield candidates only from its opening minutes and the rest would never reach scoring.
+    private List<int[]> thinEvenly(List<int[]> spans, int limit) {
+        if (spans.size() <= limit) {
+            return spans;
         }
-        return candidates;
+        log.info("Thinning {} windows to {} spread across the transcript", spans.size(), limit);
+        List<int[]> kept = new ArrayList<>(limit);
+        double step = (double) spans.size() / limit;
+        for (int index = 0; index < limit; index++) {
+            kept.add(spans.get((int) (index * step)));
+        }
+        return kept;
     }
 
     private Candidate candidateOf(int id, List<Sentence> sentences, int start, int end) {

@@ -3,8 +3,10 @@ package ai.dashaun.kirinuki.video;
 import java.nio.file.Path;
 import java.util.List;
 
+import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Component;
 
+import ai.dashaun.kirinuki.common.ExternalToolException;
 import ai.dashaun.kirinuki.common.ProcessRunner;
 import ai.dashaun.kirinuki.common.VideoDownloadException;
 import ai.dashaun.kirinuki.config.KirinukiYtDlpProperties;
@@ -27,6 +29,7 @@ public class YtDlpClient {
         this.processRunner = processRunner;
     }
 
+    @Retryable(value = ExternalToolException.class, maxRetries = 2, delay = 2000, multiplier = 2)
     public YouTubeMetadata fetchMetadata(String url) {
         String json = processRunner.run(properties.binary(),
                 List.of(properties.binary(), "--dump-json", "--no-playlist", url),
@@ -43,6 +46,7 @@ public class YtDlpClient {
         }
     }
 
+    @Retryable(value = ExternalToolException.class, maxRetries = 2, delay = 5000, multiplier = 2)
     public void download(String url, Path target) {
         processRunner.run(properties.binary(), List.of(properties.binary(),
                 "--no-playlist",

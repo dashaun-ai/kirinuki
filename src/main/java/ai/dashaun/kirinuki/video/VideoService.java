@@ -1,5 +1,8 @@
 package ai.dashaun.kirinuki.video;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -8,7 +11,9 @@ import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import ai.dashaun.kirinuki.common.ArtifactNotFoundException;
 import ai.dashaun.kirinuki.common.DuplicateVideoException;
+import ai.dashaun.kirinuki.common.KirinukiException;
 import ai.dashaun.kirinuki.common.InvalidVideoUrlException;
 import ai.dashaun.kirinuki.common.VideoNotFoundException;
 import ai.dashaun.kirinuki.pipeline.PipelineOrchestrator;
@@ -58,6 +63,26 @@ public class VideoService {
         return videoRepository.findById(videoId)
                 .map(this::toResponse)
                 .orElseThrow(() -> new VideoNotFoundException(videoId));
+    }
+
+    // Completed stages are skipped on their artifact, so re-driving only repeats what actually failed.
+    public VideoResponse advance(UUID videoId) {
+        VideoResponse video = findById(videoId);
+        pipelineOrchestrator.startAsync(videoId);
+        return video;
+    }
+
+    public String readArtifact(UUID videoId, String artifact) {
+        findById(videoId);
+        Path path = storageService.resolve(videoId.toString(), artifact);
+        if (!Files.exists(path)) {
+            throw new ArtifactNotFoundException(videoId, artifact);
+        }
+        try {
+            return Files.readString(path);
+        } catch (IOException exception) {
+            throw new KirinukiException("Could not read " + artifact + " for video " + videoId, exception);
+        }
     }
 
     private String extractYoutubeId(String url) {
