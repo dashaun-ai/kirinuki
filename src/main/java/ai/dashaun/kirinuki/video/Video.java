@@ -44,4 +44,7 @@ public class Video {
 
     @Column(nullable = false)
     private Instant ingestedAt;
+
+    @Column(length = 1024)
+    private String lastError;
 }

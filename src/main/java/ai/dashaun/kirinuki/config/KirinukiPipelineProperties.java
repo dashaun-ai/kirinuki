@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record KirinukiPipelineProperties(
         @DefaultValue Media media,
         @DefaultValue Asr asr,
+        @DefaultValue Candidates candidates,
         @DefaultValue Scoring scoring) {
 
     public record Media(
@@ -23,6 +24,12 @@ public record KirinukiPipelineProperties(
             @DefaultValue("cpu") String device,
             @DefaultValue("int8") String computeType,
             @DefaultValue("2h") Duration timeout) {
+    }
+
+    public record Candidates(
+            @DefaultValue("20s") Duration minDuration,
+            @DefaultValue("60s") Duration maxDuration,
+            @DefaultValue("40") int maxCandidates) {
     }
 
     public record Scoring(

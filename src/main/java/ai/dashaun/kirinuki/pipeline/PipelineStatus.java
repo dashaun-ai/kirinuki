@@ -1,6 +1,7 @@
 package ai.dashaun.kirinuki.pipeline;
 
 public enum PipelineStatus {
+    DOWNLOADING,
     UPLOADED,
     MEDIA_PREPARATION,
     FEATURE_EXTRACTION,

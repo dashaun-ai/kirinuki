@@ -13,5 +13,6 @@ public record VideoResponse(
         int durationSeconds,
         String uploader,
         PipelineStatus status,
-        Instant ingestedAt) {
+        Instant ingestedAt,
+        String lastError) {
 }

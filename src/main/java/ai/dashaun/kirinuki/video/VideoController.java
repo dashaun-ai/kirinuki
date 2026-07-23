@@ -26,7 +26,9 @@ public class VideoController {
     @PostMapping
     public ResponseEntity<VideoResponse> ingest(@Valid @RequestBody IngestVideoRequest request) {
         VideoResponse video = videoService.ingest(request.url());
-        return ResponseEntity.created(URI.create("/videos/" + video.id())).body(video);
+        return ResponseEntity.accepted()
+                .location(URI.create("/videos/" + video.id()))
+                .body(video);
     }
 
     @GetMapping("/{videoId}")

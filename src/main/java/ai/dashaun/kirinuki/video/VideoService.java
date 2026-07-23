@@ -41,12 +41,13 @@ public class VideoService {
             throw new DuplicateVideoException(youtubeId);
         }
 
+        // Metadata stays synchronous so an unavailable or private video fails the request outright
+        // and no row is written (FR-ING-4); the download itself is a pipeline stage.
         YouTubeMetadata metadata = ytDlpClient.fetchMetadata(url);
         UUID videoId = UUID.randomUUID();
-        ytDlpClient.download(url, storageService.prepareFor(videoId.toString(), PipelineOrchestrator.SOURCE));
 
         Video video = new Video(videoId, metadata.youtubeId(), url, metadata.title(), metadata.durationSeconds(),
-                metadata.uploader(), PipelineStatus.UPLOADED, Instant.now());
+                metadata.uploader(), PipelineStatus.DOWNLOADING, Instant.now(), null);
         VideoResponse response = toResponse(videoRepository.save(video));
         pipelineOrchestrator.startAsync(videoId);
         return response;
@@ -76,6 +77,7 @@ public class VideoService {
                 video.getDurationSeconds(),
                 video.getUploader(),
                 video.getStatus(),
-                video.getIngestedAt());
+                video.getIngestedAt(),
+                video.getLastError());
     }
 }
