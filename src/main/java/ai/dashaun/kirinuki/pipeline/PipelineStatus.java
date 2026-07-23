@@ -1,0 +1,15 @@
+package ai.dashaun.kirinuki.pipeline;
+
+public enum PipelineStatus {
+    UPLOADED,
+    MEDIA_PREPARATION,
+    FEATURE_EXTRACTION,
+    WAITING_FOR_FEATURES,
+    CANDIDATE_GENERATION,
+    AI_ANALYSIS,
+    CLIP_RENDERING,
+    METADATA_GENERATION,
+    READY_FOR_REVIEW,
+    READY_TO_PUBLISH,
+    PUBLISHED
+}

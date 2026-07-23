@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: kirinuki
+
+  profiles:
+    default: local
+
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/kirinuki
+    username: kirinuki
+    password: kirinuki
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  mvc:
+    problemdetails:
+      enabled: true
+
+  flyway:
+    enabled: true
+
+  ai:
+    ollama:
+      base-url: http://localhost:11434
+
+server:
+  port: 8080
+
+management:
+  otlp:
+    metrics:
+      export:
+        url: http://localhost:4318/v1/metrics
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://localhost:4318/v1/traces
+    logging:
+      export:
+        otlp:
+          endpoint: http://localhost:4318/v1/logs
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  level:
+    ai.dashaun.kirinuki: INFO
+    org.springframework.boot.opentelemetry.autoconfigure: DEBUG
+    org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure: DEBUG
+
+kirinuki:
+  storage:
+    root: ./storage
+  yt-dlp:
+    binary: yt-dlp
+    metadata-timeout: 60s
+    download-timeout: 30m

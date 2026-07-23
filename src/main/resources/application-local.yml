@@ -1,0 +1,20 @@
+spring:
+  ai:
+    ollama:
+      chat:
+        model: gemma3
+
+kirinuki:
+  pipeline:
+    media:
+      frame-interval: 15s
+      timeout: 1h
+    asr:
+      model: base.en
+      device: cpu
+      compute-type: int8
+      timeout: 2h
+    scoring:
+      candidates-per-request: 5
+      top-clips: 8
+      timeout: 2h

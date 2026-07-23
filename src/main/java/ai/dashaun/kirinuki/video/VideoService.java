@@ -1,0 +1,77 @@
+package ai.dashaun.kirinuki.video;
+
+import java.time.Instant;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import ai.dashaun.kirinuki.common.DuplicateVideoException;
+import ai.dashaun.kirinuki.common.InvalidVideoUrlException;
+import ai.dashaun.kirinuki.common.VideoNotFoundException;
+import ai.dashaun.kirinuki.pipeline.PipelineStatus;
+import ai.dashaun.kirinuki.storage.StorageService;
+
+@Slf4j
+@Service
+public class VideoService {
+
+    private static final Pattern YOUTUBE_ID = Pattern.compile(
+            "(?:youtube\\.com/(?:watch\\?(?:.*&)?v=|shorts/|embed/|live/)|youtu\\.be/)([A-Za-z0-9_-]{11})");
+
+    private static final String SOURCE_ARTIFACT = "source.mp4";
+
+    private final VideoRepository videoRepository;
+    private final YtDlpClient ytDlpClient;
+    private final StorageService storageService;
+
+    public VideoService(VideoRepository videoRepository, YtDlpClient ytDlpClient, StorageService storageService) {
+        this.videoRepository = videoRepository;
+        this.ytDlpClient = ytDlpClient;
+        this.storageService = storageService;
+    }
+
+    public VideoResponse ingest(String url) {
+        String youtubeId = extractYoutubeId(url);
+        if (videoRepository.existsByYoutubeId(youtubeId)) {
+            throw new DuplicateVideoException(youtubeId);
+        }
+
+        YouTubeMetadata metadata = ytDlpClient.fetchMetadata(url);
+        UUID videoId = UUID.randomUUID();
+        ytDlpClient.download(url, storageService.prepareFor(videoId.toString(), SOURCE_ARTIFACT));
+
+        Video video = new Video(videoId, metadata.youtubeId(), url, metadata.title(), metadata.durationSeconds(),
+                metadata.uploader(), PipelineStatus.UPLOADED, Instant.now());
+        return toResponse(videoRepository.save(video));
+    }
+
+    public VideoResponse findById(UUID videoId) {
+        log.info("Finding video {}", videoId);
+        return videoRepository.findById(videoId)
+                .map(this::toResponse)
+                .orElseThrow(() -> new VideoNotFoundException(videoId));
+    }
+
+    private String extractYoutubeId(String url) {
+        Matcher matcher = YOUTUBE_ID.matcher(url);
+        if (!matcher.find()) {
+            throw new InvalidVideoUrlException(url);
+        }
+        return matcher.group(1);
+    }
+
+    private VideoResponse toResponse(Video video) {
+        return new VideoResponse(
+                video.getId(),
+                video.getYoutubeId(),
+                video.getSourceUrl(),
+                video.getTitle(),
+                video.getDurationSeconds(),
+                video.getUploader(),
+                video.getStatus(),
+                video.getIngestedAt());
+    }
+}
