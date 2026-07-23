@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import ai.dashaun.kirinuki.common.DuplicateVideoException;
 import ai.dashaun.kirinuki.common.InvalidVideoUrlException;
 import ai.dashaun.kirinuki.common.VideoNotFoundException;
+import ai.dashaun.kirinuki.pipeline.PipelineOrchestrator;
 import ai.dashaun.kirinuki.pipeline.PipelineStatus;
 import ai.dashaun.kirinuki.storage.StorageService;
 
@@ -21,16 +22,17 @@ public class VideoService {
     private static final Pattern YOUTUBE_ID = Pattern.compile(
             "(?:youtube\\.com/(?:watch\\?(?:.*&)?v=|shorts/|embed/|live/)|youtu\\.be/)([A-Za-z0-9_-]{11})");
 
-    private static final String SOURCE_ARTIFACT = "source.mp4";
-
     private final VideoRepository videoRepository;
     private final YtDlpClient ytDlpClient;
     private final StorageService storageService;
+    private final PipelineOrchestrator pipelineOrchestrator;
 
-    public VideoService(VideoRepository videoRepository, YtDlpClient ytDlpClient, StorageService storageService) {
+    public VideoService(VideoRepository videoRepository, YtDlpClient ytDlpClient, StorageService storageService,
+            PipelineOrchestrator pipelineOrchestrator) {
         this.videoRepository = videoRepository;
         this.ytDlpClient = ytDlpClient;
         this.storageService = storageService;
+        this.pipelineOrchestrator = pipelineOrchestrator;
     }
 
     public VideoResponse ingest(String url) {
@@ -41,11 +43,13 @@ public class VideoService {
 
         YouTubeMetadata metadata = ytDlpClient.fetchMetadata(url);
         UUID videoId = UUID.randomUUID();
-        ytDlpClient.download(url, storageService.prepareFor(videoId.toString(), SOURCE_ARTIFACT));
+        ytDlpClient.download(url, storageService.prepareFor(videoId.toString(), PipelineOrchestrator.SOURCE));
 
         Video video = new Video(videoId, metadata.youtubeId(), url, metadata.title(), metadata.durationSeconds(),
                 metadata.uploader(), PipelineStatus.UPLOADED, Instant.now());
-        return toResponse(videoRepository.save(video));
+        VideoResponse response = toResponse(videoRepository.save(video));
+        pipelineOrchestrator.startAsync(videoId);
+        return response;
     }
 
     public VideoResponse findById(UUID videoId) {

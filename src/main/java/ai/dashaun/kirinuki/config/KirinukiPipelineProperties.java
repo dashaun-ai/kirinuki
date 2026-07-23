@@ -12,11 +12,13 @@ public record KirinukiPipelineProperties(
         @DefaultValue Scoring scoring) {
 
     public record Media(
+            @DefaultValue("ffmpeg") String binary,
             @DefaultValue("10s") Duration frameInterval,
             @DefaultValue("30m") Duration timeout) {
     }
 
     public record Asr(
+            @DefaultValue("whisper-ctranslate2") String binary,
             @DefaultValue("base.en") String model,
             @DefaultValue("cpu") String device,
             @DefaultValue("int8") String computeType,
