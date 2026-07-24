@@ -1,54 +1,34 @@
 # Kirinuki
 
-Turn long-form video into polished, ready-to-publish short-form clips.
+Turn long-form video into short-form clips.
 
-Kirinuki ingests a long recording (submit a YouTube URL), discovers the best moments, cuts them into
-vertical clips with burned-in subtitles, and generates per-platform captions and metadata.
-**Publishing is optional** — the core product finds the moments and delivers the assets; posting is a
-convenience layered on top.
+Submit a video URL. Kirinuki downloads it, transcribes it, finds the moments worth clipping, scores
+them, and renders vertical clips with burned-in subtitles.
 
-> **Status:** design phase. No code yet. The system is **fully local** — YouTube source via yt-dlp,
-> local filesystem storage, local Postgres, and **local inference models** (hosting decided; exact
-> per-role model still tuned — see [Open Decisions](docs/ARCHITECTURE.md#open-decisions)).
-> **Planned next:** packaging clips into themed release *series*, and an *analytics learning loop* that
-> learns what the audience loves and recommends what to make next.
+Everything runs locally. Nothing is uploaded to a third party and there is no per-call cost.
 
----
+## Requirements
 
-## Documentation
+* Java 25
+* Docker and Docker Compose
+* Ollama, with a chat model pulled
+* `yt-dlp`, `ffmpeg` and `whisper-ctranslate2` on `PATH`
 
-| Document | What it covers |
-|---|---|
-| [Product Requirements (PRD)](docs/PRD.md) | Why we're building this, who it's for, goals, scope, success metrics |
-| [Functional Requirements (FRD)](docs/FRD.md) | What the system must do — features, inputs/outputs, per-stage behavior, acceptance criteria |
-| [Architecture](docs/ARCHITECTURE.md) | How it's built — components, workflow, pipeline stages, storage, diagrams |
-| [Decisions (ADRs)](docs/DECISIONS.md) | Significant, hard-to-reverse choices — starting with model & hosting |
+## Running
 
-**Read in this order:** PRD (the *why*) → FRD (the *what*) → Architecture (the *how*).
-
----
-
-## In one picture
-
-```
-YouTube URL ─▶ Media Prep ─▶ ┌ Transcript ┐
-   (yt-dlp)                  │ Scenes     │
-                             │ OCR        ├─▶ Candidates ─▶ AI Scoring ─▶ Render ─▶ Review ─▶ (Publish)
-                             │ Audio      │
-                             └ Visual     ┘
+```bash
+docker compose up -d
+./mvnw spring-boot:run
 ```
 
-Deterministic media + local inference, coordinated by a Spring-native orchestrator. The local
-filesystem is the shared source of truth; every expensive stage is idempotent and independently
-retryable.
+The app listens on `:8080`. Submit a video with a `POST` to `/videos` and poll `/videos/{id}` for
+progress. Artifacts are written under `storage/`.
 
----
+## Configuration
 
-## Guiding principles
+Hardware-dependent settings live in profiles rather than code, so the same build runs on a laptop or
+a workstation with a GPU:
 
-1. Each ingested video is a **long-running workflow** that can pause for human review.
-2. **Local storage is the source of truth**; the database carries only metadata and pointers.
-3. Every expensive stage is **idempotent and independently retryable**, keyed by `(videoId, stage)` —
-   which doubles as the resume mechanism.
-4. **AI is one service among many** — deterministic stages do most of the work; the local model is
-   invoked only where genuine reasoning is required, never to drive the control flow.
+```bash
+SPRING_PROFILES_ACTIVE=gpu ./mvnw spring-boot:run
+```

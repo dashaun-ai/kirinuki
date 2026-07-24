@@ -186,7 +186,8 @@ an interrupted stage repeats.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> UPLOADED
+    [*] --> DOWNLOADING
+    DOWNLOADING --> UPLOADED
     UPLOADED --> MEDIA_PREPARATION
     MEDIA_PREPARATION --> FEATURE_EXTRACTION
     FEATURE_EXTRACTION --> WAITING_FOR_FEATURES
