@@ -14,6 +14,7 @@ import ai.dashaun.kirinuki.common.DuplicateVideoException;
 import ai.dashaun.kirinuki.common.InvalidVideoUrlException;
 import ai.dashaun.kirinuki.common.VideoNotFoundException;
 import ai.dashaun.kirinuki.common.VideoNotResumableException;
+import ai.dashaun.kirinuki.pipeline.Artifacts;
 import ai.dashaun.kirinuki.pipeline.PipelineOrchestrator;
 import ai.dashaun.kirinuki.pipeline.PipelineStatus;
 import ai.dashaun.kirinuki.storage.StorageService;
@@ -67,6 +68,10 @@ public class VideoService {
         }
         pipelineOrchestrator.startAsync(videoId);
         return toResponse(video);
+    }
+
+    public Path clipPath(UUID videoId, int index) {
+        return artifactPath(videoId, "%s/clip-%d.mp4".formatted(Artifacts.CLIP_DIRECTORY, index));
     }
 
     public Path artifactPath(UUID videoId, String artifact) {

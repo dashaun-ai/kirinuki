@@ -22,6 +22,7 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class CandidateScorer {
 
+    private static final double MAX_OVERLAP = 0.5;
     private static final Logger log = LoggerFactory.getLogger(CandidateScorer.class);
 
     private final KirinukiPipelineProperties properties;
@@ -46,12 +47,37 @@ public class CandidateScorer {
             throw new KirinukiException("Every candidate failed scoring; the model is likely unavailable");
         }
 
-        List<ScoredCandidate> ranked = scored.stream()
-                .sorted(Comparator.comparingInt(ScoredCandidate::overallScore).reversed())
-                .limit(properties.scoring().topClips())
-                .toList();
-        log.info("Scored {} of {} candidates, kept top {}", scored.size(), candidates.size(), ranked.size());
+        List<ScoredCandidate> ranked = rank(scored);
+        log.info("Scored {} of {} candidates, kept top {} distinct moments", scored.size(), candidates.size(),
+                ranked.size());
         write(ranked, target);
+    }
+
+    private List<ScoredCandidate> rank(List<ScoredCandidate> scored) {
+        List<ScoredCandidate> byScore = scored.stream()
+                .sorted(Comparator.comparingInt(ScoredCandidate::overallScore).reversed())
+                .toList();
+
+        List<ScoredCandidate> kept = new ArrayList<>();
+        for (ScoredCandidate candidate : byScore) {
+            if (kept.size() == properties.scoring().topClips()) {
+                break;
+            }
+            if (kept.stream().noneMatch(existing -> overlaps(existing, candidate))) {
+                kept.add(candidate);
+            }
+        }
+        return kept;
+    }
+
+    private boolean overlaps(ScoredCandidate first, ScoredCandidate second) {
+        double shared = Math.min(first.candidate().end(), second.candidate().end())
+                - Math.max(first.candidate().start(), second.candidate().start());
+        if (shared <= 0) {
+            return false;
+        }
+        double shorter = Math.min(first.candidate().durationSeconds(), second.candidate().durationSeconds());
+        return shared / shorter > MAX_OVERLAP;
     }
 
     private Optional<ScoredCandidate> scoreOne(Candidate candidate, String videoTitle) {
