@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 
 import ai.dashaun.kirinuki.common.KirinukiException;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
@@ -21,32 +20,20 @@ public class CandidateGenerator {
 
     private final KirinukiPipelineProperties properties;
     private final ObjectMapper objectMapper;
+    private final TranscriptReader transcriptReader;
 
-    public CandidateGenerator(KirinukiPipelineProperties properties, ObjectMapper objectMapper) {
+    public CandidateGenerator(KirinukiPipelineProperties properties, ObjectMapper objectMapper,
+            TranscriptReader transcriptReader) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.transcriptReader = transcriptReader;
     }
 
     public void generate(Path transcript, Path target) {
-        List<Word> words = readWords(transcript);
+        List<Word> words = transcriptReader.readWords(transcript);
         List<Sentence> sentences = splitIntoSentences(words);
         List<Candidate> candidates = window(sentences);
         write(candidates, target);
-    }
-
-    private List<Word> readWords(Path transcript) {
-        JsonNode root = read(transcript);
-        List<Word> words = new ArrayList<>();
-        for (JsonNode segment : root.path("segments")) {
-            for (JsonNode word : segment.path("words")) {
-                words.add(new Word(word.path("word").asString(), word.path("start").asDouble(),
-                        word.path("end").asDouble()));
-            }
-        }
-        if (words.isEmpty()) {
-            throw new KirinukiException("Transcript has no word-level timestamps: " + transcript);
-        }
-        return words;
     }
 
     private List<Sentence> splitIntoSentences(List<Word> words) {
@@ -143,14 +130,6 @@ public class CandidateGenerator {
             text.append(text.isEmpty() ? "" : " ").append(sentences.get(index).text());
         }
         return text.toString();
-    }
-
-    private JsonNode read(Path transcript) {
-        try {
-            return objectMapper.readTree(Files.readString(transcript));
-        } catch (IOException exception) {
-            throw new KirinukiException("Could not read transcript " + transcript, exception);
-        }
     }
 
     private void write(List<Candidate> candidates, Path target) {

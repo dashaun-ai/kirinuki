@@ -55,4 +55,9 @@ public class VideoController {
     public ResponseEntity<Resource> candidates(@PathVariable UUID videoId) {
         return ResponseEntity.ok(new FileSystemResource(videoService.artifactPath(videoId, Artifacts.CANDIDATES)));
     }
+
+    @GetMapping(value = "/{videoId}/scored", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Resource> scored(@PathVariable UUID videoId) {
+        return ResponseEntity.ok(new FileSystemResource(videoService.artifactPath(videoId, Artifacts.SCORED)));
+    }
 }

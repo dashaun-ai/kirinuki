@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import ai.dashaun.kirinuki.common.VideoNotFoundException;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import ai.dashaun.kirinuki.storage.StorageService;
 import ai.dashaun.kirinuki.video.Video;
 import ai.dashaun.kirinuki.video.VideoRepository;
@@ -22,13 +24,15 @@ public class PipelineOrchestrator {
     private final VideoRepository videoRepository;
     private final StorageService storageService;
     private final List<PipelineStage> stages;
+    private final ObservationRegistry observationRegistry;
     private final Set<UUID> inFlight = ConcurrentHashMap.newKeySet();
 
     public PipelineOrchestrator(VideoRepository videoRepository, StorageService storageService,
-            List<PipelineStage> stages) {
+            List<PipelineStage> stages, ObservationRegistry observationRegistry) {
         this.videoRepository = videoRepository;
         this.storageService = storageService;
         this.stages = stages;
+        this.observationRegistry = observationRegistry;
     }
 
     public void startAsync(UUID videoId) {
@@ -55,19 +59,32 @@ public class PipelineOrchestrator {
 
     public void advance(UUID videoId) {
         try {
-            Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
-            video.setLastError(null);
-            for (PipelineStage stage : stages) {
-                runStage(stage, video);
-            }
-            log.info("Pipeline reached {} for video {}", video.getStatus(), videoId);
+            Observation.createNotStarted("kirinuki.pipeline", observationRegistry)
+                    .highCardinalityKeyValue("videoId", videoId.toString())
+                    .observe(() -> driveStages(videoId));
         } catch (RuntimeException exception) {
             log.error("Pipeline stalled for video {}", videoId, exception);
             recordFailure(videoId, exception);
         }
     }
 
+    private void driveStages(UUID videoId) {
+        Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
+        video.setLastError(null);
+        for (PipelineStage stage : stages) {
+            runStage(stage, video);
+        }
+        log.info("Pipeline reached {} for video {}", video.getStatus(), videoId);
+    }
+
     private void runStage(PipelineStage stage, Video video) {
+        Observation.createNotStarted("kirinuki.stage", observationRegistry)
+                .lowCardinalityKeyValue("stage", stage.getClass().getSimpleName())
+                .highCardinalityKeyValue("videoId", video.getId().toString())
+                .observe(() -> execute(stage, video));
+    }
+
+    private void execute(PipelineStage stage, Video video) {
         String videoId = video.getId().toString();
         moveTo(video, stage.status());
         if (!storageService.exists(videoId, stage.artifact())) {

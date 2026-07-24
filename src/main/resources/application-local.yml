@@ -3,6 +3,9 @@ spring:
     ollama:
       chat:
         model: gemma3
+        num-thread: 6
+        num-ctx: 4096
+        num-predict: 300
 
 kirinuki:
   pipeline:
@@ -15,6 +18,5 @@ kirinuki:
       compute-type: int8
       timeout: 2h
     scoring:
-      candidates-per-request: 5
       top-clips: 8
       timeout: 2h
