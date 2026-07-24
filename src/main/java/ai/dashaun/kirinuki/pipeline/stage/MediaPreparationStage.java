@@ -1,6 +1,7 @@
 package ai.dashaun.kirinuki.pipeline.stage;
 
 import org.springframework.core.annotation.Order;
+import org.springframework.resilience.annotation.ConcurrencyLimit;
 import org.springframework.stereotype.Component;
 
 import ai.dashaun.kirinuki.media.FfmpegClient;
@@ -13,7 +14,6 @@ import ai.dashaun.kirinuki.video.Video;
 @Component
 @Order(2)
 class MediaPreparationStage implements PipelineStage {
-
     private final StorageService storageService;
     private final FfmpegClient ffmpegClient;
 
@@ -33,9 +33,10 @@ class MediaPreparationStage implements PipelineStage {
     }
 
     @Override
+    @ConcurrencyLimit(1)
     public void run(Video video) {
         String videoId = video.getId().toString();
         ffmpegClient.extractAudio(storageService.resolve(videoId, Artifacts.SOURCE),
-                storageService.prepareFor(videoId, Artifacts.AUDIO));
+                storageService.temporaryFor(videoId, Artifacts.AUDIO));
     }
 }

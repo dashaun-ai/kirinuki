@@ -16,7 +16,6 @@ import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class YtDlpClient {
-
     private static final String FORMAT = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
 
     private final KirinukiYtDlpProperties properties;
@@ -29,7 +28,6 @@ public class YtDlpClient {
         this.processRunner = processRunner;
     }
 
-    @Retryable(value = ExternalToolException.class, maxRetries = 2, delay = 2000, multiplier = 2)
     public YouTubeMetadata fetchMetadata(String url) {
         String json = processRunner.run(properties.binary(),
                 List.of(properties.binary(), "--dump-json", "--no-playlist", url),
@@ -46,7 +44,7 @@ public class YtDlpClient {
         }
     }
 
-    @Retryable(value = ExternalToolException.class, maxRetries = 2, delay = 5000, multiplier = 2)
+    @Retryable(value = ExternalToolException.class, maxRetries = 1, delay = 5000)
     public void download(String url, Path target) {
         processRunner.run(properties.binary(), List.of(properties.binary(),
                 "--no-playlist",

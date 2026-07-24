@@ -14,7 +14,6 @@ import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 
 @Component
 public class WhisperClient {
-
     private final KirinukiPipelineProperties properties;
     private final ProcessRunner processRunner;
 
@@ -36,7 +35,6 @@ public class WhisperClient {
         renameToTarget(audio, target);
     }
 
-    // The CLI names its output after the input file, so audio.wav yields audio.json.
     private void renameToTarget(Path audio, Path target) {
         String audioName = audio.getFileName().toString();
         String baseName = audioName.substring(0, audioName.lastIndexOf('.'));

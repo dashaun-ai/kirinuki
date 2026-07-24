@@ -13,7 +13,6 @@ import ai.dashaun.kirinuki.video.VideoRepository;
 
 @Component
 class PipelineRecovery {
-
     private static final Logger log = LoggerFactory.getLogger(PipelineRecovery.class);
 
     private final VideoRepository videoRepository;
@@ -24,15 +23,25 @@ class PipelineRecovery {
         this.pipelineOrchestrator = pipelineOrchestrator;
     }
 
-    // A crash or restart leaves videos stranded mid-stage; completed stages are skipped on their
-    // artifact, so re-driving costs only the stage that was interrupted (FR-WF-6).
     @EventListener(ApplicationReadyEvent.class)
-    void resumeUnfinished() {
-        List<Video> unfinished = videoRepository.findByStatusIn(PipelineStatus.RESUMABLE);
-        if (unfinished.isEmpty()) {
-            return;
+    void onReady() {
+        Thread.ofVirtual().name("pipeline-recovery").start(this::resumeUnfinished);
+    }
+
+    private void resumeUnfinished() {
+        try {
+            List<Video> stranded = videoRepository.findAll().stream()
+                    .filter(video -> video.getStatus().isResumable())
+                    .filter(video -> pipelineOrchestrator.hasPendingWork(video.getId()))
+                    .toList();
+            if (stranded.isEmpty()) {
+                return;
+            }
+            log.info("Resuming {} unfinished video(s)", stranded.size());
+            stranded.forEach(video -> pipelineOrchestrator.startAsync(video.getId()));
+        } catch (RuntimeException exception) {
+            log.error("Recovery scan failed; videos can still be re-driven with POST /videos/{id}/advance",
+                    exception);
         }
-        log.info("Resuming {} unfinished video(s)", unfinished.size());
-        unfinished.forEach(video -> pipelineOrchestrator.startAsync(video.getId()));
     }
 }

@@ -17,7 +17,6 @@ import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class CandidateGenerator {
-
     private static final Logger log = LoggerFactory.getLogger(CandidateGenerator.class);
 
     private final KirinukiPipelineProperties properties;
@@ -50,7 +49,6 @@ public class CandidateGenerator {
         return words;
     }
 
-    // Whisper segments break mid-phrase, so sentences are rebuilt from terminal punctuation instead.
     private List<Sentence> splitIntoSentences(List<Word> words) {
         List<Sentence> sentences = new ArrayList<>();
         int firstIndex = 0;
@@ -78,24 +76,24 @@ public class CandidateGenerator {
                 text.toString().strip());
     }
 
-    // Each start yields a short and a long window so the scorer can judge whether a moment plays
-    // better tight or extended; the next start resumes after the long one, keeping the count down
-    // while still covering the whole video.
     private List<Candidate> window(List<Sentence> sentences) {
-        List<int[]> spans = spans(sentences);
-        List<int[]> kept = thinEvenly(spans, properties.candidates().maxCandidates());
+        List<Group> groups = groups(sentences);
+        List<Group> kept = thinEvenly(groups, properties.candidates().maxCandidates());
 
         List<Candidate> candidates = new ArrayList<>();
-        for (int[] span : kept) {
-            candidates.add(candidateOf(candidates.size(), sentences, span[0], span[1]));
+        for (Group group : kept) {
+            candidates.add(candidateOf(candidates.size(), sentences, group.start(), group.shortEnd()));
+            if (group.hasLongWindow()) {
+                candidates.add(candidateOf(candidates.size(), sentences, group.start(), group.longEnd()));
+            }
         }
         return candidates;
     }
 
-    private List<int[]> spans(List<Sentence> sentences) {
+    private List<Group> groups(List<Sentence> sentences) {
         double minimum = properties.candidates().minDuration().toSeconds();
         double maximum = properties.candidates().maxDuration().toSeconds();
-        List<int[]> spans = new ArrayList<>();
+        List<Group> groups = new ArrayList<>();
 
         int start = 0;
         while (start < sentences.size()) {
@@ -112,26 +110,22 @@ public class CandidateGenerator {
                     && sentences.get(longEnd + 1).end() - sentences.get(start).start() <= maximum) {
                 longEnd++;
             }
-            spans.add(new int[] { start, shortEnd });
-            if (longEnd != shortEnd) {
-                spans.add(new int[] { start, longEnd });
-            }
+            groups.add(new Group(start, shortEnd, longEnd));
             start = longEnd + 1;
         }
-        return spans;
+        return groups;
     }
 
-    // Sampling across the whole transcript rather than truncating: a long video would otherwise
-    // yield candidates only from its opening minutes and the rest would never reach scoring.
-    private List<int[]> thinEvenly(List<int[]> spans, int limit) {
-        if (spans.size() <= limit) {
-            return spans;
+    private List<Group> thinEvenly(List<Group> groups, int limit) {
+        int groupLimit = Math.max(1, limit / 2);
+        if (groups.size() <= groupLimit) {
+            return groups;
         }
-        log.info("Thinning {} windows to {} spread across the transcript", spans.size(), limit);
-        List<int[]> kept = new ArrayList<>(limit);
-        double step = (double) spans.size() / limit;
-        for (int index = 0; index < limit; index++) {
-            kept.add(spans.get((int) (index * step)));
+        log.info("Thinning {} candidate groups to {} spread across the transcript", groups.size(), groupLimit);
+        List<Group> kept = new ArrayList<>(groupLimit);
+        double step = (double) groups.size() / groupLimit;
+        for (int index = 0; index < groupLimit; index++) {
+            kept.add(groups.get((int) (index * step)));
         }
         return kept;
     }
@@ -164,6 +158,12 @@ public class CandidateGenerator {
             Files.writeString(target, objectMapper.writeValueAsString(candidates));
         } catch (IOException exception) {
             throw new KirinukiException("Could not write candidates to " + target, exception);
+        }
+    }
+
+    private record Group(int start, int shortEnd, int longEnd) {
+        boolean hasLongWindow() {
+            return longEnd != shortEnd;
         }
     }
 

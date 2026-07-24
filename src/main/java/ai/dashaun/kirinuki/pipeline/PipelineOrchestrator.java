@@ -1,7 +1,9 @@
 package ai.dashaun.kirinuki.pipeline;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,13 +16,13 @@ import ai.dashaun.kirinuki.video.VideoRepository;
 
 @Service
 public class PipelineOrchestrator {
-
     private static final int MAX_ERROR_LENGTH = 1024;
     private static final Logger log = LoggerFactory.getLogger(PipelineOrchestrator.class);
 
     private final VideoRepository videoRepository;
     private final StorageService storageService;
     private final List<PipelineStage> stages;
+    private final Set<UUID> inFlight = ConcurrentHashMap.newKeySet();
 
     public PipelineOrchestrator(VideoRepository videoRepository, StorageService storageService,
             List<PipelineStage> stages) {
@@ -30,11 +32,27 @@ public class PipelineOrchestrator {
     }
 
     public void startAsync(UUID videoId) {
-        Thread.ofVirtual().name("pipeline-" + videoId).start(() -> advance(videoId));
+        if (!inFlight.add(videoId)) {
+            log.info("Pipeline already running for video {}", videoId);
+            return;
+        }
+        Thread.ofVirtual().name("pipeline-" + videoId).start(() -> {
+            try {
+                advance(videoId);
+            } finally {
+                inFlight.remove(videoId);
+            }
+        });
     }
 
-    // A failed stage leaves the video parked at its current status; re-driving skips whatever already
-    // produced an artifact, so only the interrupted stage repeats.
+    public boolean isRunning(UUID videoId) {
+        return inFlight.contains(videoId);
+    }
+
+    public boolean hasPendingWork(UUID videoId) {
+        return stages.stream().anyMatch(stage -> !storageService.exists(videoId.toString(), stage.artifact()));
+    }
+
     public void advance(UUID videoId) {
         try {
             Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
@@ -50,9 +68,16 @@ public class PipelineOrchestrator {
     }
 
     private void runStage(PipelineStage stage, Video video) {
+        String videoId = video.getId().toString();
         moveTo(video, stage.status());
-        if (!storageService.exists(video.getId().toString(), stage.artifact())) {
-            stage.run(video);
+        if (!storageService.exists(videoId, stage.artifact())) {
+            try {
+                stage.run(video);
+            } catch (RuntimeException exception) {
+                storageService.discardTemporary(videoId, stage.artifact());
+                throw exception;
+            }
+            storageService.commit(videoId, stage.artifact());
         }
         moveTo(video, stage.completedStatus());
     }

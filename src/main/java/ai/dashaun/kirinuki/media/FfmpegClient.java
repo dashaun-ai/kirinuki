@@ -10,7 +10,6 @@ import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 
 @Component
 public class FfmpegClient {
-
     private final KirinukiPipelineProperties properties;
     private final ProcessRunner processRunner;
 
@@ -19,7 +18,6 @@ public class FfmpegClient {
         this.processRunner = processRunner;
     }
 
-    // 16 kHz mono PCM is what the ASR models expect; anything else makes them resample internally.
     public void extractAudio(Path source, Path target) {
         String binary = properties.media().binary();
         processRunner.run(binary, List.of(binary,

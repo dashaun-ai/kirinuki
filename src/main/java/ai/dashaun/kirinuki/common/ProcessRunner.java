@@ -15,11 +15,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ProcessRunner {
-
     public String run(String tool, List<String> command, Duration timeout) {
         Process process = start(tool, command);
-        // Both streams are drained on virtual threads so a full pipe buffer cannot deadlock the wait,
-        // and so the timeout is enforced by waitFor rather than by whenever the tool closes stdout.
         try (ExecutorService drains = Executors.newVirtualThreadPerTaskExecutor()) {
             Future<String> standardOutput = drains.submit(() -> readFully(process.getInputStream()));
             Future<String> errorOutput = drains.submit(() -> readFully(process.getErrorStream()));
@@ -46,7 +43,7 @@ public class ProcessRunner {
         try {
             return new ProcessBuilder(command).start();
         } catch (IOException exception) {
-            throw new ExternalToolException(tool, "could not be started — is it on PATH?", exception);
+            throw new ToolNotAvailableException(tool, exception);
         }
     }
 

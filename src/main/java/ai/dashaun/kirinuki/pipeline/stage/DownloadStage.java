@@ -40,6 +40,6 @@ class DownloadStage implements PipelineStage {
     @Override
     public void run(Video video) {
         ytDlpClient.download(video.getSourceUrl(),
-                storageService.prepareFor(video.getId().toString(), Artifacts.SOURCE));
+                storageService.temporaryFor(video.getId().toString(), Artifacts.SOURCE));
     }
 }

@@ -3,6 +3,8 @@ package ai.dashaun.kirinuki.video;
 import java.net.URI;
 import java.util.UUID;
 
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -45,12 +47,12 @@ public class VideoController {
     }
 
     @GetMapping(value = "/{videoId}/transcript", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<String> transcript(@PathVariable UUID videoId) {
-        return ResponseEntity.ok(videoService.readArtifact(videoId, Artifacts.TRANSCRIPT));
+    public ResponseEntity<Resource> transcript(@PathVariable UUID videoId) {
+        return ResponseEntity.ok(new FileSystemResource(videoService.artifactPath(videoId, Artifacts.TRANSCRIPT)));
     }
 
     @GetMapping(value = "/{videoId}/candidates", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<String> candidates(@PathVariable UUID videoId) {
-        return ResponseEntity.ok(videoService.readArtifact(videoId, Artifacts.CANDIDATES));
+    public ResponseEntity<Resource> candidates(@PathVariable UUID videoId) {
+        return ResponseEntity.ok(new FileSystemResource(videoService.artifactPath(videoId, Artifacts.CANDIDATES)));
     }
 }

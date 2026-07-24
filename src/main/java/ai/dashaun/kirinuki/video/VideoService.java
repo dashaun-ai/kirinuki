@@ -1,7 +1,5 @@
 package ai.dashaun.kirinuki.video;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.UUID;
@@ -13,9 +11,9 @@ import org.springframework.stereotype.Service;
 
 import ai.dashaun.kirinuki.common.ArtifactNotFoundException;
 import ai.dashaun.kirinuki.common.DuplicateVideoException;
-import ai.dashaun.kirinuki.common.KirinukiException;
 import ai.dashaun.kirinuki.common.InvalidVideoUrlException;
 import ai.dashaun.kirinuki.common.VideoNotFoundException;
+import ai.dashaun.kirinuki.common.VideoNotResumableException;
 import ai.dashaun.kirinuki.pipeline.PipelineOrchestrator;
 import ai.dashaun.kirinuki.pipeline.PipelineStatus;
 import ai.dashaun.kirinuki.storage.StorageService;
@@ -23,7 +21,6 @@ import ai.dashaun.kirinuki.storage.StorageService;
 @Slf4j
 @Service
 public class VideoService {
-
     private static final Pattern YOUTUBE_ID = Pattern.compile(
             "(?:youtube\\.com/(?:watch\\?(?:.*&)?v=|shorts/|embed/|live/)|youtu\\.be/)([A-Za-z0-9_-]{11})");
 
@@ -46,8 +43,6 @@ public class VideoService {
             throw new DuplicateVideoException(youtubeId);
         }
 
-        // Metadata stays synchronous so an unavailable or private video fails the request outright
-        // and no row is written (FR-ING-4); the download itself is a pipeline stage.
         YouTubeMetadata metadata = ytDlpClient.fetchMetadata(url);
         UUID videoId = UUID.randomUUID();
 
@@ -65,24 +60,23 @@ public class VideoService {
                 .orElseThrow(() -> new VideoNotFoundException(videoId));
     }
 
-    // Completed stages are skipped on their artifact, so re-driving only repeats what actually failed.
     public VideoResponse advance(UUID videoId) {
-        VideoResponse video = findById(videoId);
+        Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
+        if (!video.getStatus().isResumable()) {
+            throw new VideoNotResumableException(videoId, video.getStatus().name());
+        }
         pipelineOrchestrator.startAsync(videoId);
-        return video;
+        return toResponse(video);
     }
 
-    public String readArtifact(UUID videoId, String artifact) {
-        findById(videoId);
-        Path path = storageService.resolve(videoId.toString(), artifact);
-        if (!Files.exists(path)) {
+    public Path artifactPath(UUID videoId, String artifact) {
+        if (!videoRepository.existsById(videoId)) {
+            throw new VideoNotFoundException(videoId);
+        }
+        if (!storageService.exists(videoId.toString(), artifact)) {
             throw new ArtifactNotFoundException(videoId, artifact);
         }
-        try {
-            return Files.readString(path);
-        } catch (IOException exception) {
-            throw new KirinukiException("Could not read " + artifact + " for video " + videoId, exception);
-        }
+        return storageService.resolve(videoId.toString(), artifact);
     }
 
     private String extractYoutubeId(String url) {
