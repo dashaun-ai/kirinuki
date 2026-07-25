@@ -16,6 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class YtDlpClient {
+
     private static final String FORMAT = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
 
     private final KirinukiYtDlpProperties properties;

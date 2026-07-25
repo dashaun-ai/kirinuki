@@ -1,6 +1,5 @@
 package ai.dashaun.kirinuki.pipeline.stage;
 
-import org.springframework.core.annotation.Order;
 import org.springframework.resilience.annotation.ConcurrencyLimit;
 import org.springframework.stereotype.Component;
 
@@ -12,8 +11,8 @@ import ai.dashaun.kirinuki.storage.StorageService;
 import ai.dashaun.kirinuki.video.Video;
 
 @Component
-@Order(3)
 class TranscriptionStage implements PipelineStage {
+
     private final StorageService storageService;
     private final WhisperClient whisperClient;
 
@@ -30,11 +29,6 @@ class TranscriptionStage implements PipelineStage {
     @Override
     public PipelineStatus status() {
         return PipelineStatus.FEATURE_EXTRACTION;
-    }
-
-    @Override
-    public PipelineStatus completedStatus() {
-        return PipelineStatus.WAITING_FOR_FEATURES;
     }
 
     @Override

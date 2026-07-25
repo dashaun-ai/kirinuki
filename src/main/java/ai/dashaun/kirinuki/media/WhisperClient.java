@@ -14,6 +14,7 @@ import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 
 @Component
 public class WhisperClient {
+
     private final KirinukiPipelineProperties properties;
     private final ProcessRunner processRunner;
 

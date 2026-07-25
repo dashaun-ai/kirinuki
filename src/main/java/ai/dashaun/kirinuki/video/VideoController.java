@@ -1,10 +1,13 @@
 package ai.dashaun.kirinuki.video;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.UUID;
 
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -59,5 +62,20 @@ public class VideoController {
     @GetMapping(value = "/{videoId}/scored", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Resource> scored(@PathVariable UUID videoId) {
         return ResponseEntity.ok(new FileSystemResource(videoService.artifactPath(videoId, Artifacts.SCORED)));
+    }
+
+    @GetMapping(value = "/{videoId}/clips", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Resource> clips(@PathVariable UUID videoId) {
+        return ResponseEntity.ok(new FileSystemResource(videoService.artifactPath(videoId, Artifacts.CLIPS)));
+    }
+
+    @GetMapping("/{videoId}/clips/{index}")
+    public ResponseEntity<Resource> clip(@PathVariable UUID videoId, @PathVariable int index) {
+        Path clip = videoService.clipPath(videoId, index);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("video/mp4"))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(clip.getFileName().toString()).build().toString())
+                .body(new FileSystemResource(clip));
     }
 }

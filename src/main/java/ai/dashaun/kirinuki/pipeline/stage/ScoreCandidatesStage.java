@@ -1,6 +1,5 @@
 package ai.dashaun.kirinuki.pipeline.stage;
 
-import org.springframework.core.annotation.Order;
 import org.springframework.resilience.annotation.ConcurrencyLimit;
 import org.springframework.stereotype.Component;
 
@@ -12,7 +11,6 @@ import ai.dashaun.kirinuki.storage.StorageService;
 import ai.dashaun.kirinuki.video.Video;
 
 @Component
-@Order(5)
 class ScoreCandidatesStage implements PipelineStage {
 
     private final StorageService storageService;

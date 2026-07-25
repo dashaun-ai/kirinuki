@@ -10,6 +10,7 @@ import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 
 @Component
 public class FfmpegClient {
+
     private final KirinukiPipelineProperties properties;
     private final ProcessRunner processRunner;
 
@@ -45,16 +46,6 @@ public class FfmpegClient {
                 "-c:a", "aac",
                 "-movflags", "+faststart",
                 target.toString()), render.timeout());
-    }
-
-    public void thumbnail(Path clip, double offset, Path target) {
-        String binary = properties.media().binary();
-        processRunner.run(binary, List.of(binary,
-                "-y",
-                "-ss", String.valueOf(offset),
-                "-i", clip.toString(),
-                "-frames:v", "1",
-                target.toString()), properties.media().timeout());
     }
 
     private String verticalFilter(KirinukiPipelineProperties.Render render, Path subtitles) {

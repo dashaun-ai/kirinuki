@@ -14,6 +14,7 @@ import ai.dashaun.kirinuki.config.KirinukiStorageProperties;
 
 @Service
 public class StorageService {
+
     private static final String TEMPORARY_SUFFIX = ".part";
     private static final Logger log = LoggerFactory.getLogger(StorageService.class);
 

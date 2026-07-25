@@ -1,6 +1,5 @@
 package ai.dashaun.kirinuki.pipeline.stage;
 
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import ai.dashaun.kirinuki.pipeline.Artifacts;
@@ -11,7 +10,6 @@ import ai.dashaun.kirinuki.video.Video;
 import ai.dashaun.kirinuki.video.YtDlpClient;
 
 @Component
-@Order(1)
 class DownloadStage implements PipelineStage {
 
     private final StorageService storageService;
@@ -23,18 +21,13 @@ class DownloadStage implements PipelineStage {
     }
 
     @Override
-    public String artifact() {
-        return Artifacts.SOURCE;
-    }
-
-    @Override
     public PipelineStatus status() {
         return PipelineStatus.DOWNLOADING;
     }
 
     @Override
-    public PipelineStatus completedStatus() {
-        return PipelineStatus.UPLOADED;
+    public String artifact() {
+        return Artifacts.SOURCE;
     }
 
     @Override

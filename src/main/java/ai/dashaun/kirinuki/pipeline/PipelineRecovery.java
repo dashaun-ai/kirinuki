@@ -13,6 +13,7 @@ import ai.dashaun.kirinuki.video.VideoRepository;
 
 @Component
 class PipelineRecovery {
+
     private static final Logger log = LoggerFactory.getLogger(PipelineRecovery.class);
 
     private final VideoRepository videoRepository;
@@ -32,7 +33,6 @@ class PipelineRecovery {
         try {
             List<Video> stranded = videoRepository.findAll().stream()
                     .filter(video -> video.getStatus().isResumable())
-                    .filter(video -> pipelineOrchestrator.hasPendingWork(video.getId()))
                     .toList();
             if (stranded.isEmpty()) {
                 return;
