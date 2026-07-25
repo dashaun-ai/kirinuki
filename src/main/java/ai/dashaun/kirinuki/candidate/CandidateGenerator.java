@@ -16,6 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class CandidateGenerator {
+
     private static final Logger log = LoggerFactory.getLogger(CandidateGenerator.class);
 
     private final KirinukiPipelineProperties properties;

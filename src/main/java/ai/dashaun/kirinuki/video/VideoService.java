@@ -22,6 +22,7 @@ import ai.dashaun.kirinuki.storage.StorageService;
 @Slf4j
 @Service
 public class VideoService {
+
     private static final Pattern YOUTUBE_ID = Pattern.compile(
             "(?:youtube\\.com/(?:watch\\?(?:.*&)?v=|shorts/|embed/|live/)|youtu\\.be/)([A-Za-z0-9_-]{11})");
 

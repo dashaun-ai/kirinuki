@@ -1,6 +1,5 @@
 package ai.dashaun.kirinuki.pipeline.stage;
 
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import ai.dashaun.kirinuki.candidate.CandidateGenerator;
@@ -11,7 +10,6 @@ import ai.dashaun.kirinuki.storage.StorageService;
 import ai.dashaun.kirinuki.video.Video;
 
 @Component
-@Order(4)
 class CandidateGenerationStage implements PipelineStage {
 
     private final StorageService storageService;

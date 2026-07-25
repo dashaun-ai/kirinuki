@@ -1,6 +1,8 @@
 package ai.dashaun.kirinuki.pipeline;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -10,29 +12,31 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import ai.dashaun.kirinuki.common.VideoNotFoundException;
-import io.micrometer.observation.Observation;
-import io.micrometer.observation.ObservationRegistry;
 import ai.dashaun.kirinuki.storage.StorageService;
 import ai.dashaun.kirinuki.video.Video;
 import ai.dashaun.kirinuki.video.VideoRepository;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 
 @Service
 public class PipelineOrchestrator {
+
     private static final int MAX_ERROR_LENGTH = 1024;
     private static final Logger log = LoggerFactory.getLogger(PipelineOrchestrator.class);
 
     private final VideoRepository videoRepository;
     private final StorageService storageService;
-    private final List<PipelineStage> stages;
     private final ObservationRegistry observationRegistry;
+    private final Map<PipelineStatus, PipelineStage> stagesByStatus;
     private final Set<UUID> inFlight = ConcurrentHashMap.newKeySet();
 
     public PipelineOrchestrator(VideoRepository videoRepository, StorageService storageService,
             List<PipelineStage> stages, ObservationRegistry observationRegistry) {
         this.videoRepository = videoRepository;
         this.storageService = storageService;
-        this.stages = stages;
         this.observationRegistry = observationRegistry;
+        this.stagesByStatus = new EnumMap<>(PipelineStatus.class);
+        stages.forEach(stage -> stagesByStatus.put(stage.status(), stage));
     }
 
     public void startAsync(UUID videoId) {
@@ -49,14 +53,6 @@ public class PipelineOrchestrator {
         });
     }
 
-    public boolean isRunning(UUID videoId) {
-        return inFlight.contains(videoId);
-    }
-
-    public boolean hasPendingWork(UUID videoId) {
-        return stages.stream().anyMatch(stage -> !storageService.exists(videoId.toString(), stage.artifact()));
-    }
-
     public void advance(UUID videoId) {
         try {
             Observation.createNotStarted("kirinuki.pipeline", observationRegistry)
@@ -71,10 +67,11 @@ public class PipelineOrchestrator {
     private void driveStages(UUID videoId) {
         Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
         video.setLastError(null);
-        for (PipelineStage stage : stages) {
+        for (PipelineStage stage = stagesByStatus.get(video.getStatus()); stage != null;
+                stage = stagesByStatus.get(video.getStatus())) {
             runStage(stage, video);
         }
-        log.info("Pipeline reached {} for video {}", video.getStatus(), videoId);
+        log.info("Pipeline paused at {} for video {}", video.getStatus(), videoId);
     }
 
     private void runStage(PipelineStage stage, Video video) {
@@ -86,7 +83,6 @@ public class PipelineOrchestrator {
 
     private void execute(PipelineStage stage, Video video) {
         String videoId = video.getId().toString();
-        moveTo(video, stage.status());
         if (!storageService.exists(videoId, stage.artifact())) {
             try {
                 stage.run(video);
@@ -96,7 +92,8 @@ public class PipelineOrchestrator {
             }
             storageService.commit(videoId, stage.artifact());
         }
-        moveTo(video, stage.completedStatus());
+        video.setStatus(video.getStatus().next());
+        videoRepository.save(video);
     }
 
     private void recordFailure(UUID videoId, RuntimeException exception) {
@@ -105,13 +102,5 @@ public class PipelineOrchestrator {
             video.setLastError(message.length() > MAX_ERROR_LENGTH ? message.substring(0, MAX_ERROR_LENGTH) : message);
             videoRepository.save(video);
         });
-    }
-
-    private void moveTo(Video video, PipelineStatus status) {
-        if (video.getStatus() == status) {
-            return;
-        }
-        video.setStatus(status);
-        videoRepository.save(video);
     }
 }

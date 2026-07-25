@@ -8,6 +8,7 @@ import io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppen
 
 @Component
 class OpenTelemetryLogbackInstaller implements InitializingBean {
+
     private final OpenTelemetry openTelemetry;
 
     OpenTelemetryLogbackInstaller(OpenTelemetry openTelemetry) {
