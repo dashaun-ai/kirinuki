@@ -54,14 +54,12 @@ public class ClipRenderer {
         double end = scored.candidate().end();
         Path subtitles = clipDirectory.resolve("clip-%d.ass".formatted(number));
         Path video = clipDirectory.resolve("clip-%d.mp4".formatted(number));
-        Path thumbnail = clipDirectory.resolve("clip-%d.jpg".formatted(number));
 
         subtitleWriter.write(words, start, end, subtitles);
         ffmpegClient.renderVertical(source, start, end - start, subtitles, video);
-        ffmpegClient.thumbnail(video, (end - start) / 2, thumbnail);
 
         return new Clip(number, start, end, scored.overallScore(), scored.score().reason(),
-                video.getFileName().toString(), thumbnail.getFileName().toString());
+                video.getFileName().toString());
     }
 
     private List<ScoredCandidate> readScored(Path scoredFile) {

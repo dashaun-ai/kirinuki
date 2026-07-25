@@ -6,6 +6,5 @@ public record Clip(
         double end,
         int overallScore,
         String reason,
-        String video,
-        String thumbnail) {
+        String video) {
 }
