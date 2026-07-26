@@ -54,8 +54,6 @@ management:
 logging:
   level:
     ai.dashaun.kirinuki: INFO
-    org.springframework.boot.opentelemetry.autoconfigure: DEBUG
-    org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure: DEBUG
 
 kirinuki:
   storage:

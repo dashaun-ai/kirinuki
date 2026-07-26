@@ -15,8 +15,6 @@ import ai.dashaun.kirinuki.common.VideoNotFoundException;
 import ai.dashaun.kirinuki.storage.StorageService;
 import ai.dashaun.kirinuki.video.Video;
 import ai.dashaun.kirinuki.video.VideoRepository;
-import io.micrometer.observation.Observation;
-import io.micrometer.observation.ObservationRegistry;
 
 @Service
 public class PipelineOrchestrator {
@@ -26,15 +24,13 @@ public class PipelineOrchestrator {
 
     private final VideoRepository videoRepository;
     private final StorageService storageService;
-    private final ObservationRegistry observationRegistry;
     private final Map<PipelineStatus, PipelineStage> stagesByStatus;
     private final Set<UUID> inFlight = ConcurrentHashMap.newKeySet();
 
     public PipelineOrchestrator(VideoRepository videoRepository, StorageService storageService,
-            List<PipelineStage> stages, ObservationRegistry observationRegistry) {
+            List<PipelineStage> stages) {
         this.videoRepository = videoRepository;
         this.storageService = storageService;
-        this.observationRegistry = observationRegistry;
         this.stagesByStatus = new EnumMap<>(PipelineStatus.class);
         stages.forEach(stage -> stagesByStatus.put(stage.status(), stage));
     }
@@ -55,33 +51,20 @@ public class PipelineOrchestrator {
 
     public void advance(UUID videoId) {
         try {
-            Observation.createNotStarted("kirinuki.pipeline", observationRegistry)
-                    .highCardinalityKeyValue("videoId", videoId.toString())
-                    .observe(() -> driveStages(videoId));
+            Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
+            video.setLastError(null);
+            for (PipelineStage stage = stagesByStatus.get(video.getStatus()); stage != null;
+                    stage = stagesByStatus.get(video.getStatus())) {
+                runStage(stage, video);
+            }
+            log.info("Pipeline paused at {} for video {}", video.getStatus(), videoId);
         } catch (RuntimeException exception) {
             log.error("Pipeline stalled for video {}", videoId, exception);
             recordFailure(videoId, exception);
         }
     }
 
-    private void driveStages(UUID videoId) {
-        Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
-        video.setLastError(null);
-        for (PipelineStage stage = stagesByStatus.get(video.getStatus()); stage != null;
-                stage = stagesByStatus.get(video.getStatus())) {
-            runStage(stage, video);
-        }
-        log.info("Pipeline paused at {} for video {}", video.getStatus(), videoId);
-    }
-
     private void runStage(PipelineStage stage, Video video) {
-        Observation.createNotStarted("kirinuki.stage", observationRegistry)
-                .lowCardinalityKeyValue("stage", stage.getClass().getSimpleName())
-                .highCardinalityKeyValue("videoId", video.getId().toString())
-                .observe(() -> execute(stage, video));
-    }
-
-    private void execute(PipelineStage stage, Video video) {
         String videoId = video.getId().toString();
         if (!storageService.exists(videoId, stage.artifact())) {
             try {
