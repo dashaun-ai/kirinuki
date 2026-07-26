@@ -13,25 +13,10 @@ import java.util.concurrent.TimeUnit;
 
 import org.springframework.stereotype.Component;
 
-import io.micrometer.observation.Observation;
-import io.micrometer.observation.ObservationRegistry;
-
 @Component
 public class ProcessRunner {
 
-    private final ObservationRegistry observationRegistry;
-
-    public ProcessRunner(ObservationRegistry observationRegistry) {
-        this.observationRegistry = observationRegistry;
-    }
-
     public String run(String tool, List<String> command, Duration timeout) {
-        return Observation.createNotStarted("kirinuki.tool", observationRegistry)
-                .lowCardinalityKeyValue("tool", tool)
-                .observe(() -> execute(tool, command, timeout));
-    }
-
-    private String execute(String tool, List<String> command, Duration timeout) {
         Process process = start(tool, command);
         try (ExecutorService drains = Executors.newVirtualThreadPerTaskExecutor()) {
             Future<String> standardOutput = drains.submit(() -> readFully(process.getInputStream()));
