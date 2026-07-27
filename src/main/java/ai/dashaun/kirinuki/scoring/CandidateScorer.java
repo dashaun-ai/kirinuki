@@ -40,8 +40,9 @@ public class CandidateScorer {
         List<Candidate> candidates = readCandidates(candidatesFile);
 
         List<ScoredCandidate> scored = new ArrayList<>();
-        for (Candidate candidate : candidates) {
-            scoreOne(candidate, videoTitle).ifPresent(scored::add);
+        for (int index = 0; index < candidates.size(); index++) {
+            log.info("Scoring candidate {}/{}", index + 1, candidates.size());
+            scoreOne(candidates.get(index), videoTitle).ifPresent(scored::add);
         }
         if (scored.isEmpty() && !candidates.isEmpty()) {
             throw new KirinukiException("Every candidate failed scoring; the model is likely unavailable");
@@ -55,6 +56,7 @@ public class CandidateScorer {
 
     private List<ScoredCandidate> rank(List<ScoredCandidate> scored) {
         List<ScoredCandidate> byScore = scored.stream()
+                .filter(candidate -> candidate.overallScore() >= properties.scoring().minScore())
                 .sorted(Comparator.comparingInt(ScoredCandidate::overallScore).reversed())
                 .toList();
 

@@ -48,6 +48,7 @@ public record KirinukiPipelineProperties(
 
     public record Scoring(
             @DefaultValue("8") int topClips,
+            @DefaultValue("0") int minScore,
             @DefaultValue("0.0") double temperature,
             @DefaultValue("30m") Duration timeout,
             @DefaultValue Weights weights) {

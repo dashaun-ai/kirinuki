@@ -1,6 +1,7 @@
 package ai.dashaun.kirinuki.scoring;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Component;
@@ -39,6 +40,7 @@ public class CandidateScoreClient {
         this.chatClient = chatClientBuilder
                 .defaultSystem(SYSTEM)
                 .defaultOptions(ChatOptions.builder().temperature(properties.scoring().temperature()))
+                .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }
 

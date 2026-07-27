@@ -17,4 +17,5 @@ kirinuki:
     scoring:
       candidates-per-request: 25
       top-clips: 8
+      min-score: 50
       timeout: 20m

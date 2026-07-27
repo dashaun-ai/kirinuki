@@ -67,6 +67,7 @@ public class PipelineOrchestrator {
     private void runStage(PipelineStage stage, Video video) {
         String videoId = video.getId().toString();
         if (!storageService.exists(videoId, stage.artifact())) {
+            log.info("Video {} → running stage {}", videoId, stage.status());
             try {
                 stage.run(video);
             } catch (RuntimeException exception) {

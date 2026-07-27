@@ -7,6 +7,10 @@ spring:
         num-ctx: 4096
         num-predict: 300
 
+logging:
+  level:
+    org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
+
 kirinuki:
   pipeline:
     media:
@@ -19,4 +23,5 @@ kirinuki:
       timeout: 2h
     scoring:
       top-clips: 8
+      min-score: 50
       timeout: 2h
