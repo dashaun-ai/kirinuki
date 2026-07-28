@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import ai.dashaun.kirinuki.candidate.TranscriptReader;
 import ai.dashaun.kirinuki.candidate.Word;
 import ai.dashaun.kirinuki.common.KirinukiException;
+import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 import ai.dashaun.kirinuki.media.FfmpegClient;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
 import tools.jackson.core.type.TypeReference;
@@ -27,13 +28,15 @@ public class ClipRenderer {
     private final TranscriptReader transcriptReader;
     private final SubtitleWriter subtitleWriter;
     private final FfmpegClient ffmpegClient;
+    private final KirinukiPipelineProperties properties;
 
     public ClipRenderer(ObjectMapper objectMapper, TranscriptReader transcriptReader, SubtitleWriter subtitleWriter,
-            FfmpegClient ffmpegClient) {
+            FfmpegClient ffmpegClient, KirinukiPipelineProperties properties) {
         this.objectMapper = objectMapper;
         this.transcriptReader = transcriptReader;
         this.subtitleWriter = subtitleWriter;
         this.ffmpegClient = ffmpegClient;
+        this.properties = properties;
     }
 
     public void render(Path source, Path transcript, Path scoredFile, Path clipDirectory, Path target) {
@@ -50,8 +53,13 @@ public class ClipRenderer {
     }
 
     private Clip renderOne(Path source, List<Word> words, ScoredCandidate scored, int number, Path clipDirectory) {
-        double start = scored.candidate().start();
-        double end = scored.candidate().end();
+        var candidate = scored.candidate();
+        double leadIn = Math.min(properties.render().leadIn().toMillis() / 1000.0,
+                gapBefore(words, candidate.firstWordIndex()));
+        double tail = Math.min(properties.render().tail().toMillis() / 1000.0,
+                gapAfter(words, candidate.lastWordIndex()));
+        double start = Math.max(0, candidate.start() - leadIn);
+        double end = candidate.end() + tail;
         Path subtitles = clipDirectory.resolve("clip-%d.ass".formatted(number));
         Path video = clipDirectory.resolve("clip-%d.mp4".formatted(number));
 
@@ -60,6 +68,20 @@ public class ClipRenderer {
 
         return new Clip(number, start, end, scored.overallScore(), scored.score().reason(),
                 video.getFileName().toString());
+    }
+
+    private double gapBefore(List<Word> words, int firstWordIndex) {
+        if (firstWordIndex <= 0) {
+            return Double.MAX_VALUE;
+        }
+        return words.get(firstWordIndex).start() - words.get(firstWordIndex - 1).end();
+    }
+
+    private double gapAfter(List<Word> words, int lastWordIndex) {
+        if (lastWordIndex + 1 >= words.size()) {
+            return Double.MAX_VALUE;
+        }
+        return words.get(lastWordIndex + 1).start() - words.get(lastWordIndex).end();
     }
 
     private List<ScoredCandidate> readScored(Path scoredFile) {

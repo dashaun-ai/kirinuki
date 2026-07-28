@@ -15,7 +15,6 @@ public record KirinukiPipelineProperties(
 
     public record Media(
             @DefaultValue("ffmpeg") String binary,
-            @DefaultValue("10s") Duration frameInterval,
             @DefaultValue("30m") Duration timeout) {
     }
 
@@ -43,6 +42,8 @@ public record KirinukiPipelineProperties(
             @DefaultValue("Arial") String subtitleFont,
             @DefaultValue("72") int subtitleSize,
             @DefaultValue("200") int subtitleMarginBottom,
+            @DefaultValue("400ms") Duration leadIn,
+            @DefaultValue("600ms") Duration tail,
             @DefaultValue("30m") Duration timeout) {
     }
 
