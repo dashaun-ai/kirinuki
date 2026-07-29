@@ -10,8 +10,13 @@ public record KirinukiPipelineProperties(
         @DefaultValue Media media,
         @DefaultValue Asr asr,
         @DefaultValue Candidates candidates,
+        @DefaultValue Scenes scenes,
         @DefaultValue Render render,
         @DefaultValue Scoring scoring) {
+
+    public record Scenes(
+            @DefaultValue("0.4") double threshold) {
+    }
 
     public record Media(
             @DefaultValue("ffmpeg") String binary,

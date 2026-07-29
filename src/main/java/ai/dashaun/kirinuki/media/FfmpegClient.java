@@ -1,6 +1,7 @@
 package ai.dashaun.kirinuki.media;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -29,6 +30,30 @@ public class FfmpegClient {
                 "-ar", "16000",
                 "-c:a", "pcm_s16le",
                 target.toString()), properties.media().timeout());
+    }
+
+    public List<Double> detectScenes(Path source) {
+        String binary = properties.media().binary();
+        double threshold = properties.scenes().threshold();
+        String output = processRunner.run(binary, List.of(binary,
+                "-hide_banner",
+                "-nostats",
+                "-i", source.toString(),
+                "-vf", "select='gt(scene,%s)',metadata=print:file=-".formatted(threshold),
+                "-an",
+                "-f", "null", "-"), properties.media().timeout());
+        return parseScenes(output);
+    }
+
+    private List<Double> parseScenes(String output) {
+        List<Double> times = new ArrayList<>();
+        for (String line : output.split("\\R")) {
+            int marker = line.indexOf("pts_time:");
+            if (marker >= 0) {
+                times.add(Double.parseDouble(line.substring(marker + "pts_time:".length()).strip()));
+            }
+        }
+        return times;
     }
 
     public void renderVertical(Path source, double start, double duration, Path subtitles, Path target) {
