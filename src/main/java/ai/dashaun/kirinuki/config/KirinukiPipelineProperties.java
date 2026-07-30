@@ -11,11 +11,17 @@ public record KirinukiPipelineProperties(
         @DefaultValue Asr asr,
         @DefaultValue Candidates candidates,
         @DefaultValue Scenes scenes,
+        @DefaultValue Audio audio,
         @DefaultValue Render render,
         @DefaultValue Scoring scoring) {
 
     public record Scenes(
             @DefaultValue("0.4") double threshold) {
+    }
+
+    public record Audio(
+            @DefaultValue("-30") int silenceThreshold,
+            @DefaultValue("500ms") Duration silenceMinDuration) {
     }
 
     public record Media(
