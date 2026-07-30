@@ -56,6 +56,39 @@ public class FfmpegClient {
         return times;
     }
 
+    public List<Silence> detectSilence(Path audio) {
+        String binary = properties.media().binary();
+        KirinukiPipelineProperties.Audio audioProperties = properties.audio();
+        double minDuration = audioProperties.silenceMinDuration().toMillis() / 1000.0;
+        String output = processRunner.run(binary, List.of(binary,
+                "-hide_banner",
+                "-nostats",
+                "-i", audio.toString(),
+                "-af", "silencedetect=noise=%ddB:d=%s,ametadata=mode=print:file=-"
+                        .formatted(audioProperties.silenceThreshold(), minDuration),
+                "-f", "null", "-"), properties.media().timeout());
+        return parseSilence(output);
+    }
+
+    private List<Silence> parseSilence(String output) {
+        List<Silence> silences = new ArrayList<>();
+        Double start = null;
+        for (String line : output.split("\\R")) {
+            int startMarker = line.indexOf("lavfi.silence_start=");
+            if (startMarker >= 0) {
+                start = Double.parseDouble(line.substring(startMarker + "lavfi.silence_start=".length()).strip());
+                continue;
+            }
+            int endMarker = line.indexOf("lavfi.silence_end=");
+            if (endMarker >= 0 && start != null) {
+                double end = Double.parseDouble(line.substring(endMarker + "lavfi.silence_end=".length()).strip());
+                silences.add(new Silence(start, end));
+                start = null;
+            }
+        }
+        return silences;
+    }
+
     public void renderVertical(Path source, double start, double duration, Path subtitles, Path target) {
         KirinukiPipelineProperties.Render render = properties.render();
         String binary = properties.media().binary();
