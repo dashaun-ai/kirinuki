@@ -55,6 +55,7 @@ public record KirinukiPipelineProperties(
             @DefaultValue("200") int subtitleMarginBottom,
             @DefaultValue("400ms") Duration leadIn,
             @DefaultValue("600ms") Duration tail,
+            @DefaultValue("1200ms") Duration snapTolerance,
             @DefaultValue("30m") Duration timeout) {
     }
 

@@ -39,6 +39,8 @@ class RenderClipsStage implements PipelineStage {
                 storageService.resolve(videoId, Artifacts.SOURCE),
                 storageService.resolve(videoId, Artifacts.TRANSCRIPT),
                 storageService.resolve(videoId, Artifacts.SCORED),
+                storageService.resolve(videoId, Artifacts.SCENES),
+                storageService.resolve(videoId, Artifacts.AUDIO_FEATURES),
                 storageService.resolve(videoId, Artifacts.CLIP_DIRECTORY),
                 storageService.temporaryFor(videoId, Artifacts.CLIPS));
     }
