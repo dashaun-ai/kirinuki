@@ -34,6 +34,8 @@ class CandidateGenerationStage implements PipelineStage {
     public void run(Video video) {
         String videoId = video.getId().toString();
         candidateGenerator.generate(storageService.resolve(videoId, Artifacts.TRANSCRIPT),
+                storageService.resolve(videoId, Artifacts.SCENES),
+                storageService.resolve(videoId, Artifacts.AUDIO_FEATURES),
                 storageService.temporaryFor(videoId, Artifacts.CANDIDATES));
     }
 }
