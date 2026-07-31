@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,9 @@ import org.springframework.stereotype.Component;
 
 import ai.dashaun.kirinuki.common.KirinukiException;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.media.AudioFeatures;
+import ai.dashaun.kirinuki.media.Silence;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
@@ -30,24 +34,58 @@ public class CandidateGenerator {
         this.transcriptReader = transcriptReader;
     }
 
-    public void generate(Path transcript, Path target) {
+    public void generate(Path transcript, Path scenesFile, Path audioFeaturesFile, Path target) {
         List<Word> words = transcriptReader.readWords(transcript);
-        List<Sentence> sentences = splitIntoSentences(words);
-        List<Candidate> candidates = window(sentences);
+        List<Silence> silences = readSilences(audioFeaturesFile);
+        List<Double> sceneCuts = readScenes(scenesFile);
+        List<Segment> segments = splitIntoSegments(words, silences, sceneCuts);
+        List<Candidate> candidates = window(segments);
         write(candidates, target);
     }
 
-    private List<Sentence> splitIntoSentences(List<Word> words) {
-        List<Sentence> sentences = new ArrayList<>();
-        int firstIndex = 0;
+    private List<Segment> splitIntoSegments(List<Word> words, List<Silence> silences, List<Double> sceneCuts) {
+        TreeSet<Integer> boundaries = new TreeSet<>();
         for (int index = 0; index < words.size(); index++) {
-            if (!endsSentence(words.get(index).text()) && index != words.size() - 1) {
+            if (endsSentence(words.get(index).text())) {
+                boundaries.add(index);
+            }
+        }
+        for (Silence silence : silences) {
+            int index = lastWordEndingBefore(words, (silence.start() + silence.end()) / 2);
+            if (index >= 0) {
+                boundaries.add(index);
+            }
+        }
+        for (double cut : sceneCuts) {
+            int index = lastWordEndingBefore(words, cut);
+            if (index >= 0) {
+                boundaries.add(index);
+            }
+        }
+        boundaries.add(words.size() - 1);
+
+        List<Segment> segments = new ArrayList<>();
+        int firstIndex = 0;
+        for (int lastIndex : boundaries) {
+            if (lastIndex < firstIndex) {
                 continue;
             }
-            sentences.add(sentenceOf(words, firstIndex, index));
-            firstIndex = index + 1;
+            segments.add(segmentOf(words, firstIndex, lastIndex));
+            firstIndex = lastIndex + 1;
         }
-        return sentences;
+        return segments;
+    }
+
+    private int lastWordEndingBefore(List<Word> words, double time) {
+        int found = -1;
+        for (int index = 0; index < words.size(); index++) {
+            if (words.get(index).end() <= time) {
+                found = index;
+            } else {
+                break;
+            }
+        }
+        return found;
     }
 
     private boolean endsSentence(String word) {
@@ -55,47 +93,47 @@ public class CandidateGenerator {
         return trimmed.endsWith(".") || trimmed.endsWith("?") || trimmed.endsWith("!");
     }
 
-    private Sentence sentenceOf(List<Word> words, int firstIndex, int lastIndex) {
+    private Segment segmentOf(List<Word> words, int firstIndex, int lastIndex) {
         StringBuilder text = new StringBuilder();
         for (int index = firstIndex; index <= lastIndex; index++) {
             text.append(words.get(index).text());
         }
-        return new Sentence(firstIndex, lastIndex, words.get(firstIndex).start(), words.get(lastIndex).end(),
+        return new Segment(firstIndex, lastIndex, words.get(firstIndex).start(), words.get(lastIndex).end(),
                 text.toString().strip());
     }
 
-    private List<Candidate> window(List<Sentence> sentences) {
-        List<Group> groups = groups(sentences);
+    private List<Candidate> window(List<Segment> segments) {
+        List<Group> groups = groups(segments);
         List<Group> kept = thinEvenly(groups, properties.candidates().maxCandidates());
 
         List<Candidate> candidates = new ArrayList<>();
         for (Group group : kept) {
-            candidates.add(candidateOf(candidates.size(), sentences, group.start(), group.shortEnd()));
+            candidates.add(candidateOf(candidates.size(), segments, group.start(), group.shortEnd()));
             if (group.hasLongWindow()) {
-                candidates.add(candidateOf(candidates.size(), sentences, group.start(), group.longEnd()));
+                candidates.add(candidateOf(candidates.size(), segments, group.start(), group.longEnd()));
             }
         }
         return candidates;
     }
 
-    private List<Group> groups(List<Sentence> sentences) {
+    private List<Group> groups(List<Segment> segments) {
         double minimum = properties.candidates().minDuration().toSeconds();
         double maximum = properties.candidates().maxDuration().toSeconds();
         List<Group> groups = new ArrayList<>();
 
         int start = 0;
-        while (start < sentences.size()) {
+        while (start < segments.size()) {
             int shortEnd = start;
-            while (shortEnd < sentences.size()
-                    && sentences.get(shortEnd).end() - sentences.get(start).start() < minimum) {
+            while (shortEnd < segments.size()
+                    && segments.get(shortEnd).end() - segments.get(start).start() < minimum) {
                 shortEnd++;
             }
-            if (shortEnd >= sentences.size()) {
+            if (shortEnd >= segments.size()) {
                 break;
             }
             int longEnd = shortEnd;
-            while (longEnd + 1 < sentences.size()
-                    && sentences.get(longEnd + 1).end() - sentences.get(start).start() <= maximum) {
+            while (longEnd + 1 < segments.size()
+                    && segments.get(longEnd + 1).end() - segments.get(start).start() <= maximum) {
                 longEnd++;
             }
             groups.add(new Group(start, shortEnd, longEnd));
@@ -118,17 +156,17 @@ public class CandidateGenerator {
         return kept;
     }
 
-    private Candidate candidateOf(int id, List<Sentence> sentences, int start, int end) {
-        Sentence first = sentences.get(start);
-        Sentence last = sentences.get(end);
+    private Candidate candidateOf(int id, List<Segment> segments, int start, int end) {
+        Segment first = segments.get(start);
+        Segment last = segments.get(end);
         return new Candidate(id, first.start(), last.end(), first.firstWordIndex(), last.lastWordIndex(),
-                textOf(sentences, start, end));
+                textOf(segments, start, end));
     }
 
-    private String textOf(List<Sentence> sentences, int start, int end) {
+    private String textOf(List<Segment> segments, int start, int end) {
         StringBuilder text = new StringBuilder();
         for (int index = start; index <= end; index++) {
-            text.append(text.isEmpty() ? "" : " ").append(sentences.get(index).text());
+            text.append(text.isEmpty() ? "" : " ").append(segments.get(index).text());
         }
         return text.toString();
     }
@@ -141,12 +179,35 @@ public class CandidateGenerator {
         }
     }
 
+    private List<Silence> readSilences(Path audioFeaturesFile) {
+        if (!Files.exists(audioFeaturesFile)) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(Files.readString(audioFeaturesFile), AudioFeatures.class).silences();
+        } catch (IOException exception) {
+            throw new KirinukiException("Could not read audio features " + audioFeaturesFile, exception);
+        }
+    }
+
+    private List<Double> readScenes(Path scenesFile) {
+        if (!Files.exists(scenesFile)) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(Files.readString(scenesFile), new TypeReference<List<Double>>() {
+            });
+        } catch (IOException exception) {
+            throw new KirinukiException("Could not read scenes " + scenesFile, exception);
+        }
+    }
+
     private record Group(int start, int shortEnd, int longEnd) {
         boolean hasLongWindow() {
             return longEnd != shortEnd;
         }
     }
 
-    private record Sentence(int firstWordIndex, int lastWordIndex, double start, double end, String text) {
+    private record Segment(int firstWordIndex, int lastWordIndex, double start, double end, String text) {
     }
 }
