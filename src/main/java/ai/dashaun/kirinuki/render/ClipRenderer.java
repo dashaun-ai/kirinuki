@@ -13,8 +13,9 @@ import org.springframework.stereotype.Component;
 import ai.dashaun.kirinuki.candidate.TranscriptReader;
 import ai.dashaun.kirinuki.candidate.Word;
 import ai.dashaun.kirinuki.common.KirinukiException;
-import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.media.AudioFeatures;
 import ai.dashaun.kirinuki.media.FfmpegClient;
+import ai.dashaun.kirinuki.media.Silence;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -28,38 +29,39 @@ public class ClipRenderer {
     private final TranscriptReader transcriptReader;
     private final SubtitleWriter subtitleWriter;
     private final FfmpegClient ffmpegClient;
-    private final KirinukiPipelineProperties properties;
+    private final BoundaryRefiner boundaryRefiner;
 
     public ClipRenderer(ObjectMapper objectMapper, TranscriptReader transcriptReader, SubtitleWriter subtitleWriter,
-            FfmpegClient ffmpegClient, KirinukiPipelineProperties properties) {
+            FfmpegClient ffmpegClient, BoundaryRefiner boundaryRefiner) {
         this.objectMapper = objectMapper;
         this.transcriptReader = transcriptReader;
         this.subtitleWriter = subtitleWriter;
         this.ffmpegClient = ffmpegClient;
-        this.properties = properties;
+        this.boundaryRefiner = boundaryRefiner;
     }
 
-    public void render(Path source, Path transcript, Path scoredFile, Path clipDirectory, Path target) {
+    public void render(Path source, Path transcript, Path scoredFile, Path scenesFile, Path audioFeaturesFile,
+            Path clipDirectory, Path target) {
         List<ScoredCandidate> scored = readScored(scoredFile);
         List<Word> words = transcriptReader.readWords(transcript);
+        List<Double> sceneCuts = readScenes(scenesFile);
+        List<Silence> silences = readSilences(audioFeaturesFile);
         createDirectory(clipDirectory);
 
         List<Clip> clips = new ArrayList<>();
         for (int index = 0; index < scored.size(); index++) {
-            clips.add(renderOne(source, words, scored.get(index), index + 1, clipDirectory));
+            clips.add(renderOne(source, words, silences, sceneCuts, scored.get(index), index + 1, clipDirectory));
         }
         log.info("Rendered {} clips into {}", clips.size(), clipDirectory);
         write(clips, target);
     }
 
-    private Clip renderOne(Path source, List<Word> words, ScoredCandidate scored, int number, Path clipDirectory) {
+    private Clip renderOne(Path source, List<Word> words, List<Silence> silences, List<Double> sceneCuts,
+            ScoredCandidate scored, int number, Path clipDirectory) {
         var candidate = scored.candidate();
-        double leadIn = Math.min(properties.render().leadIn().toMillis() / 1000.0,
-                gapBefore(words, candidate.firstWordIndex()));
-        double tail = Math.min(properties.render().tail().toMillis() / 1000.0,
-                gapAfter(words, candidate.lastWordIndex()));
-        double start = Math.max(0, candidate.start() - leadIn);
-        double end = candidate.end() + tail;
+        BoundaryRefiner.Bounds bounds = boundaryRefiner.refine(candidate, words, silences, sceneCuts);
+        double start = bounds.start();
+        double end = bounds.end();
         Path subtitles = clipDirectory.resolve("clip-%d.ass".formatted(number));
         Path video = clipDirectory.resolve("clip-%d.mp4".formatted(number));
 
@@ -70,18 +72,27 @@ public class ClipRenderer {
                 video.getFileName().toString());
     }
 
-    private double gapBefore(List<Word> words, int firstWordIndex) {
-        if (firstWordIndex <= 0) {
-            return Double.MAX_VALUE;
+    private List<Double> readScenes(Path scenesFile) {
+        if (!Files.exists(scenesFile)) {
+            return List.of();
         }
-        return words.get(firstWordIndex).start() - words.get(firstWordIndex - 1).end();
+        try {
+            return objectMapper.readValue(Files.readString(scenesFile), new TypeReference<List<Double>>() {
+            });
+        } catch (IOException exception) {
+            throw new KirinukiException("Could not read scenes " + scenesFile, exception);
+        }
     }
 
-    private double gapAfter(List<Word> words, int lastWordIndex) {
-        if (lastWordIndex + 1 >= words.size()) {
-            return Double.MAX_VALUE;
+    private List<Silence> readSilences(Path audioFeaturesFile) {
+        if (!Files.exists(audioFeaturesFile)) {
+            return List.of();
         }
-        return words.get(lastWordIndex + 1).start() - words.get(lastWordIndex).end();
+        try {
+            return objectMapper.readValue(Files.readString(audioFeaturesFile), AudioFeatures.class).silences();
+        } catch (IOException exception) {
+            throw new KirinukiException("Could not read audio features " + audioFeaturesFile, exception);
+        }
     }
 
     private List<ScoredCandidate> readScored(Path scoredFile) {
