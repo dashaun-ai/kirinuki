@@ -7,6 +7,7 @@ public enum PipelineStatus {
     CANDIDATE_GENERATION(true),
     AI_ANALYSIS(true),
     CLIP_RENDERING(true),
+    CONTENT_GENERATION(true),
     READY_FOR_REVIEW(false),
     READY_TO_PUBLISH(true),
     PUBLISHED(false);

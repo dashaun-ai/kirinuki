@@ -13,10 +13,15 @@ public record KirinukiPipelineProperties(
         @DefaultValue Scenes scenes,
         @DefaultValue Audio audio,
         @DefaultValue Render render,
-        @DefaultValue Scoring scoring) {
+        @DefaultValue Scoring scoring,
+        @DefaultValue Content content) {
 
     public record Scenes(
             @DefaultValue("0.4") double threshold) {
+    }
+
+    public record Content(
+            @DefaultValue("0.7") double temperature) {
     }
 
     public record Audio(
