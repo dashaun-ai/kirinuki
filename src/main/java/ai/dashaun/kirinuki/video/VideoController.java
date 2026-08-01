@@ -69,6 +69,11 @@ public class VideoController {
         return ResponseEntity.ok(new FileSystemResource(videoService.artifactPath(videoId, Artifacts.CLIPS)));
     }
 
+    @GetMapping(value = "/{videoId}/content", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Resource> content(@PathVariable UUID videoId) {
+        return ResponseEntity.ok(new FileSystemResource(videoService.artifactPath(videoId, Artifacts.CONTENT)));
+    }
+
     @GetMapping("/{videoId}/clips/{index}")
     public ResponseEntity<Resource> clip(@PathVariable UUID videoId, @PathVariable int index) {
         Path clip = videoService.clipPath(videoId, index);
