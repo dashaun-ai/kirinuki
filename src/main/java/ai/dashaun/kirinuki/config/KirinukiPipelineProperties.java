@@ -21,7 +21,8 @@ public record KirinukiPipelineProperties(
     }
 
     public record Content(
-            @DefaultValue("0.7") double temperature) {
+            @DefaultValue("0.7") double temperature,
+            @DefaultValue("1024") int maxTokens) {
     }
 
     public record Audio(
