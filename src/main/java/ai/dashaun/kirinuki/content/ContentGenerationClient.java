@@ -36,6 +36,14 @@ public class ContentGenerationClient {
             Keep it specific to the actual content. Do not invent facts that are not in the transcript.
             """;
 
+    private static final String REGENERATE_SYSTEM = """
+            You rewrite a single posting-metadata field for a short-form video cut from a longer tech video.
+            Work only from the transcript text you are given. Refer to the content as "this video", never
+            "this clip". Keep it polished, clear and professional with a light touch. Do not use emojis unless
+            one is genuinely necessary, and keep no stray spaces inside hashtags. Return only the new value for
+            the requested field, specific to the actual content and without inventing facts.
+            """;
+
     private final ChatClient chatClient;
 
     public ContentGenerationClient(ChatClient.Builder chatClientBuilder, KirinukiPipelineProperties properties) {
@@ -55,5 +63,27 @@ public class ContentGenerationClient {
                         .formatted(videoTitle, String.join(", ", platforms), clipTranscript))
                 .call()
                 .entity(GeneratedContent.class);
+    }
+
+    @Retryable(maxRetries = 2, delay = 500)
+    public String regenerateText(String videoTitle, String clipTranscript, String fieldInstruction) {
+        return chatClient.prompt()
+                .system(REGENERATE_SYSTEM)
+                .user("Video title: %s%n%nRewrite %s.%n%nClip transcript:%n%s"
+                        .formatted(videoTitle, fieldInstruction, clipTranscript))
+                .call()
+                .entity(RegeneratedText.class)
+                .value();
+    }
+
+    @Retryable(maxRetries = 2, delay = 500)
+    public List<String> regenerateList(String videoTitle, String clipTranscript, String fieldInstruction) {
+        return chatClient.prompt()
+                .system(REGENERATE_SYSTEM)
+                .user("Video title: %s%n%nRewrite %s.%n%nClip transcript:%n%s"
+                        .formatted(videoTitle, fieldInstruction, clipTranscript))
+                .call()
+                .entity(RegeneratedList.class)
+                .value();
     }
 }

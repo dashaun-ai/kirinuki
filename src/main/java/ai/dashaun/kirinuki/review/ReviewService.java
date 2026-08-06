@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,8 +13,11 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import ai.dashaun.kirinuki.common.ClipReviewNotFoundException;
+import ai.dashaun.kirinuki.common.InvalidRegenerationException;
 import ai.dashaun.kirinuki.common.KirinukiException;
 import ai.dashaun.kirinuki.content.ClipContent;
+import ai.dashaun.kirinuki.content.ContentGenerationClient;
+import ai.dashaun.kirinuki.content.PlatformVariant;
 import ai.dashaun.kirinuki.pipeline.Artifacts;
 import ai.dashaun.kirinuki.scoring.CandidateScore;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
@@ -28,12 +32,14 @@ public class ReviewService {
     private final ClipReviewRepository clipReviewRepository;
     private final VideoService videoService;
     private final ObjectMapper objectMapper;
+    private final ContentGenerationClient contentClient;
 
     public ReviewService(ClipReviewRepository clipReviewRepository, VideoService videoService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper, ContentGenerationClient contentClient) {
         this.clipReviewRepository = clipReviewRepository;
         this.videoService = videoService;
         this.objectMapper = objectMapper;
+        this.contentClient = contentClient;
     }
 
     public List<ClipReviewResponse> review(UUID videoId) {
@@ -71,6 +77,88 @@ public class ReviewService {
 
     public VideoResponse approve(UUID videoId) {
         return videoService.approveReview(videoId);
+    }
+
+    public ClipReviewResponse regenerate(UUID videoId, int clipIndex, RegenerateFieldRequest request) {
+        ensureSeeded(videoId);
+        ClipReview row = row(videoId, clipIndex);
+        Map<Integer, ScoredCandidate> scored = scoredByClipIndex(videoId);
+        ScoredCandidate candidate = scored.get(clipIndex);
+        String transcript = candidate == null ? "" : candidate.candidate().text();
+        String videoTitle = videoService.findById(videoId).title();
+        ClipContent regenerated = applyRegenerated(readContent(row), request, videoTitle, transcript);
+        row.setContent(writeContent(regenerated));
+        row.setUpdatedAt(Instant.now());
+        clipReviewRepository.save(row);
+        return toResponse(videoId, row, scored);
+    }
+
+    private ClipContent applyRegenerated(ClipContent content, RegenerateFieldRequest request, String videoTitle,
+            String transcript) {
+        if (request.field().isPlatformScoped()) {
+            return applyPlatformField(content, request, videoTitle, transcript);
+        }
+        return applyTopLevelField(content, request.field(), videoTitle, transcript);
+    }
+
+    private ClipContent applyTopLevelField(ClipContent content, ContentField field, String videoTitle,
+            String transcript) {
+        return switch (field) {
+            case SUMMARY -> new ClipContent(content.clipIndex(),
+                    contentClient.regenerateText(videoTitle, transcript, "the summary"),
+                    content.keywords(), content.tags(), content.platforms());
+            case KEYWORDS -> new ClipContent(content.clipIndex(), content.summary(),
+                    contentClient.regenerateList(videoTitle, transcript,
+                            "the keywords (4-8 lowercase search terms)"),
+                    content.tags(), content.platforms());
+            case TAGS -> new ClipContent(content.clipIndex(), content.summary(), content.keywords(),
+                    contentClient.regenerateList(videoTitle, transcript,
+                            "the tags (3-6 short lowercase hashtag words, without the leading '#')"),
+                    content.platforms());
+            default -> throw new InvalidRegenerationException("Field " + field + " is not a top-level field");
+        };
+    }
+
+    private ClipContent applyPlatformField(ClipContent content, RegenerateFieldRequest request, String videoTitle,
+            String transcript) {
+        String platform = request.platform();
+        if (platform == null || platform.isBlank()) {
+            throw new InvalidRegenerationException("Field " + request.field() + " requires a platform");
+        }
+        List<PlatformVariant> platforms = new ArrayList<>(content.platforms());
+        int index = indexOfPlatform(platforms, platform);
+        if (index < 0) {
+            throw new InvalidRegenerationException("Platform " + platform + " not found for this clip");
+        }
+        PlatformVariant variant = platforms.get(index);
+        PlatformVariant regenerated = switch (request.field()) {
+            case TITLE -> new PlatformVariant(variant.platform(),
+                    contentClient.regenerateText(videoTitle, transcript, "the " + platform + " title"),
+                    variant.caption(), variant.hashtags(), variant.callToAction());
+            case CAPTION -> new PlatformVariant(variant.platform(), variant.title(),
+                    contentClient.regenerateText(videoTitle, transcript,
+                            "the " + platform + " caption (the post body tuned to " + platform + ")"),
+                    variant.hashtags(), variant.callToAction());
+            case HASHTAGS -> new PlatformVariant(variant.platform(), variant.title(), variant.caption(),
+                    contentClient.regenerateList(videoTitle, transcript,
+                            "the " + platform + " hashtags (3-6 lowercase words, without the leading '#')"),
+                    variant.callToAction());
+            case CALL_TO_ACTION -> new PlatformVariant(variant.platform(), variant.title(), variant.caption(),
+                    variant.hashtags(),
+                    contentClient.regenerateText(videoTitle, transcript, "the " + platform + " call to action"));
+            default -> throw new InvalidRegenerationException("Field " + request.field() + " is not a platform field");
+        };
+        platforms.set(index, regenerated);
+        return new ClipContent(content.clipIndex(), content.summary(), content.keywords(), content.tags(), platforms);
+    }
+
+    private int indexOfPlatform(List<PlatformVariant> platforms, String platform) {
+        for (int index = 0; index < platforms.size(); index++) {
+            if (platforms.get(index).platform().equalsIgnoreCase(platform)) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private void ensureSeeded(UUID videoId) {

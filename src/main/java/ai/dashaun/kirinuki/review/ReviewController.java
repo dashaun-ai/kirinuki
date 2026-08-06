@@ -47,6 +47,12 @@ public class ReviewController {
         return ResponseEntity.ok(reviewService.decide(videoId, clipIndex, ReviewStatus.REJECTED));
     }
 
+    @PostMapping("/{clipIndex}/regenerate")
+    public ResponseEntity<ClipReviewResponse> regenerate(@PathVariable UUID videoId, @PathVariable int clipIndex,
+            @Valid @RequestBody RegenerateFieldRequest request) {
+        return ResponseEntity.ok(reviewService.regenerate(videoId, clipIndex, request));
+    }
+
     @PostMapping("/approve")
     public ResponseEntity<VideoResponse> approve(@PathVariable UUID videoId) {
         return ResponseEntity.accepted().body(reviewService.approve(videoId));
