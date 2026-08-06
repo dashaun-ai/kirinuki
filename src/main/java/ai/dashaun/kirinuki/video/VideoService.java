@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import ai.dashaun.kirinuki.common.ArtifactNotFoundException;
 import ai.dashaun.kirinuki.common.DuplicateVideoException;
 import ai.dashaun.kirinuki.common.InvalidVideoUrlException;
+import ai.dashaun.kirinuki.common.ReviewNotReadyException;
 import ai.dashaun.kirinuki.common.VideoNotFoundException;
 import ai.dashaun.kirinuki.common.VideoNotResumableException;
 import ai.dashaun.kirinuki.pipeline.Artifacts;
@@ -67,6 +68,17 @@ public class VideoService {
         if (!video.getStatus().isResumable()) {
             throw new VideoNotResumableException(videoId, video.getStatus().name());
         }
+        pipelineOrchestrator.startAsync(videoId);
+        return toResponse(video);
+    }
+
+    public VideoResponse approveReview(UUID videoId) {
+        Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
+        if (video.getStatus() != PipelineStatus.READY_FOR_REVIEW) {
+            throw new ReviewNotReadyException(videoId, video.getStatus().name());
+        }
+        video.setStatus(video.getStatus().next());
+        videoRepository.save(video);
         pipelineOrchestrator.startAsync(videoId);
         return toResponse(video);
     }
