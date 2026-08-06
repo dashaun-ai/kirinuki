@@ -20,6 +20,7 @@ import tools.jackson.databind.ObjectMapper;
 public class ContentGenerator {
 
     private static final Logger log = LoggerFactory.getLogger(ContentGenerator.class);
+    private static final List<String> DEFAULT_PLATFORMS = List.of("TikTok", "Shorts", "LinkedIn", "X");
 
     private final ObjectMapper objectMapper;
     private final ContentGenerationClient contentClient;
@@ -46,13 +47,19 @@ public class ContentGenerator {
 
     private Optional<ClipContent> generateOne(int clipIndex, ScoredCandidate clip, String videoTitle) {
         try {
-            GeneratedContent generated = contentClient.generate(videoTitle, clip.candidate().text());
+            GeneratedContent generated = contentClient.generate(videoTitle, clip.candidate().text(),
+                    platformsFor(clip));
             return Optional.of(new ClipContent(clipIndex, generated.summary(), generated.keywords(),
-                    generated.tags()));
+                    generated.tags(), generated.platforms()));
         } catch (RuntimeException exception) {
             log.warn("Skipping clip {} — content generation failed: {}", clipIndex, exception.getMessage());
             return Optional.empty();
         }
+    }
+
+    private List<String> platformsFor(ScoredCandidate clip) {
+        List<String> suggested = clip.score().suggestedPlatforms();
+        return suggested == null || suggested.isEmpty() ? DEFAULT_PLATFORMS : suggested;
     }
 
     private List<ScoredCandidate> readScored(Path scoredFile) {
