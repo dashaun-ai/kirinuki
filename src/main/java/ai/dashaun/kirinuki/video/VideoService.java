@@ -2,6 +2,7 @@ package ai.dashaun.kirinuki.video;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -61,6 +62,10 @@ public class VideoService {
         return videoRepository.findById(videoId)
                 .map(this::toResponse)
                 .orElseThrow(() -> new VideoNotFoundException(videoId));
+    }
+
+    public List<VideoResponse> findAll() {
+        return videoRepository.findAll().stream().map(this::toResponse).toList();
     }
 
     public VideoResponse advance(UUID videoId) {
