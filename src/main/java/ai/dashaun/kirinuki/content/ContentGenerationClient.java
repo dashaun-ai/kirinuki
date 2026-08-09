@@ -28,8 +28,10 @@ public class ContentGenerationClient {
             - platforms: one entry per platform you are asked for, each with:
                 - platform: the platform name exactly as given.
                 - title: a clear, compelling headline (for YouTube this is the video title).
-                - caption: the post body tuned to that platform (concise and lively for TikTok, Reels and
-                  Shorts, professional for LinkedIn, under 280 characters for X, a full description for YouTube).
+                - caption: the post body tuned to that platform. For TikTok, Reels and Shorts write
+                  3-5 engaging sentences that hook the viewer and explain the value. For LinkedIn write
+                  3-5 professional sentences with context and insight. For X keep it punchy and under
+                  280 characters. For YouTube write a full multi-paragraph description.
                 - hashtags: 3-6 lowercase hashtag words, without the leading '#'.
                 - callToAction: a short call to action (mainly for LinkedIn), or an empty string.
 
