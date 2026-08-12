@@ -112,11 +112,19 @@ public class FfmpegClient {
         int blurWidth = Math.max(2, width / 8);
         int blurHeight = Math.max(2, height / 8);
         int zoomed = (int) Math.round(width * render.zoom() / 2) * 2;
+        int gradientHeight = height / 6;
+        int gradientTop = height - gradientHeight;
         return ("[0:v]split=2[bg][fg];"
                 + "[bg]scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,boxblur=8:2,scale=%d:%d[b];"
                 + "[fg]scale=%d:-2,crop=%d:ih:(iw-%d)/2:0[f];"
-                + "[b][f]overlay=(W-w)/2:(H-h)/2,subtitles=%s")
+                + "[b][f]overlay=(W-w)/2:(H-h)/2[comp];"
+                + "color=black:s=%dx%d,format=rgba,geq=r=0:g=0:b=0:a='220*Y/H'[grad];"
+                + "[comp][grad]overlay=0:%d:shortest=1,"
+                + "subtitles=%s")
                         .formatted(blurWidth, blurHeight, blurWidth, blurHeight, width, height,
-                                zoomed, width, width, subtitles.toString());
+                                zoomed, width, width,
+                                width, gradientHeight,
+                                gradientTop,
+                                subtitles.toString());
     }
 }
