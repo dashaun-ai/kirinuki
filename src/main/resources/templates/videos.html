@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Kirinuki — clip pipeline</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<header class="topbar">
+    <div class="wrap topbar-inner">
+        <a class="brand" th:href="@{/}">
+            <span class="kanji">切り抜き</span>
+            <b>Kirinuki</b>
+            <span class="tag">clip pipeline</span>
+        </a>
+    </div>
+</header>
+
+<main class="wrap">
+    <p class="eyebrow">New clip job</p>
+    <h1 class="page">Turn a long video into short clips</h1>
+    <p class="sub">Paste a YouTube URL. Kirinuki downloads it, transcribes it, finds the strongest moments, and cuts vertical clips for review.</p>
+
+    <div class="card ingest">
+        <form method="post" th:action="@{/ingest}">
+            <input class="url" type="url" name="url" required
+                   placeholder="https://www.youtube.com/watch?v=…" aria-label="YouTube URL"/>
+            <button class="btn btn-primary" type="submit">Process video</button>
+        </form>
+        <p class="hint">Runs fully local &mdash; <b>yt-dlp</b>, <b>whisper</b>, <b>ffmpeg</b>, and a local model.</p>
+    </div>
+
+    <p class="eyebrow" style="margin-top:34px">Videos</p>
+
+    <div class="card rows" th:unless="${videos.isEmpty()}">
+        <div class="row row-head"><span>Title</span><span>Status</span><span></span></div>
+        <div class="row" th:each="video : ${videos}">
+            <div>
+                <div class="title" th:text="${video.title}">Title</div>
+                <div class="meta">
+                    <span th:text="${video.durationSeconds / 60} + ':' + ${#numbers.formatInteger(video.durationSeconds % 60, 2)}">0:00</span>
+                </div>
+            </div>
+            <span class="pill" th:classappend="${'pill--' + video.status}" th:text="${video.status}">STATUS</span>
+            <span>
+                <a class="btn btn-primary sm" th:if="${video.status.name() == 'READY_FOR_REVIEW'}"
+                   th:href="@{/videos/{id}/dashboard(id=${video.id})}">Review</a>
+                <a class="btn btn-ghost sm"
+                   th:if="${video.status.name() == 'READY_TO_PUBLISH' or video.status.name() == 'PUBLISHED'}"
+                   th:href="@{/videos/{id}/dashboard(id=${video.id})}">Open</a>
+            </span>
+        </div>
+    </div>
+
+    <p class="empty" th:if="${videos.isEmpty()}">No videos yet. Paste a URL above to start.</p>
+</main>
+</body>
+</html>

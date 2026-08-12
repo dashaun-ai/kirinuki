@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="'Processing — ' + ${video.title}">Processing</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<header class="topbar">
+    <div class="wrap topbar-inner">
+        <div class="topbar-left">
+            <a class="brand" th:href="@{/}"><span class="kanji">切り抜き</span><b>Kirinuki</b></a>
+            <a class="back" th:href="@{/}">&larr; Videos</a>
+        </div>
+    </div>
+</header>
+
+<main class="wrap">
+    <div class="proc-top">
+        <div>
+            <h1 th:text="${video.title}">Video title</h1>
+            <p class="sub" style="margin:4px 0 0">
+                Processing
+                <span th:if="${video.lastError == null}" class="spin"></span>
+            </p>
+        </div>
+        <div class="proc-right">
+            <span class="pill" th:classappend="${'pill--' + video.status}" th:text="${video.status}">STATUS</span>
+            <a class="btn btn-ghost sm" th:href="@{/videos/{v}/dashboard(v=${video.id})}">Refresh</a>
+        </div>
+    </div>
+
+    <div class="callout err" th:if="${video.lastError != null}">
+        <span th:text="'Stalled: ' + ${video.lastError}">error</span>
+        <form method="post" th:action="@{/videos/{v}/dashboard/retry(v=${video.id})}">
+            <button class="btn btn-bad sm" type="submit">Retry</button>
+        </form>
+    </div>
+
+    <div class="card steps">
+        <div class="step" th:each="step, i : ${steps}" th:classappend="${'s-' + step.state}">
+            <div class="dot" th:classappend="${step.state}"
+                 th:text="${step.state == 'done' ? '✓' : (step.state == 'active' ? '●' : i.index + 1)}">1</div>
+            <div class="name" th:text="${step.label}">Stage</div>
+            <div class="note">
+                <span th:if="${step.state == 'done'}">done</span>
+                <span th:if="${step.state == 'active' and video.lastError == null}" class="spin"></span>
+                <span th:if="${step.state == 'todo'}">queued</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="callout">
+        <b>&rarr;</b>
+        <span>The pipeline pauses at <b>Ready for review</b>. Nothing publishes until you approve the clips you want.</span>
+    </div>
+</main>
+</body>
+</html>

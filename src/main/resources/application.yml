@@ -27,8 +27,20 @@ spring:
     enabled: true
 
   ai:
-    ollama:
-      base-url: http://localhost:11434
+    openai:
+      base-url: ${SEKISHO_URL}
+      api-key: placeholder-jwt-injected
+      chat:
+        model: ${SEKISHO_MODEL}
+        max-tokens: 512
+
+sekisho:
+  client:
+    token-uri: ${INKAN_TOKEN_URI}
+    client-id: ${SEKISHO_CLIENT_ID}
+    client-secret: ${SEKISHO_CLIENT_SECRET}
+    scope: models.invoke
+  timeout: 5m
 
 server:
   port: 8080

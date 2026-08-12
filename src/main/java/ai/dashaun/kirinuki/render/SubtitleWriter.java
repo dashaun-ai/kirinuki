@@ -26,11 +26,15 @@ public class SubtitleWriter {
                 .filter(word -> word.end() > clipStart && word.start() < clipEnd)
                 .toList();
 
+        boolean uppercase = properties.render().subtitleUppercase();
         StringBuilder ass = new StringBuilder(header());
         for (List<Word> caption : group(inClip)) {
             double start = Math.max(0, caption.getFirst().start() - clipStart);
             double end = Math.min(clipEnd - clipStart, caption.getLast().end() - clipStart);
             String text = caption.stream().map(Word::text).reduce("", String::concat).strip();
+            if (uppercase) {
+                text = text.toUpperCase();
+            }
             ass.append("Dialogue: 0,%s,%s,Default,,0,0,0,,%s%n".formatted(timestamp(start), timestamp(end),
                     text.replace("\n", " ")));
         }

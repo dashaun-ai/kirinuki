@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="'Review — ' + ${video.title}">Review</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<header class="topbar">
+    <div class="wrap topbar-inner">
+        <div class="topbar-left">
+            <a class="brand" th:href="@{/}"><span class="kanji">切り抜き</span><b>Kirinuki</b></a>
+            <a class="back" th:href="@{/}">&larr; Videos</a>
+        </div>
+    </div>
+</header>
+
+<main class="wrap">
+    <div class="review-head">
+        <div>
+            <h1 th:text="${video.title}">Video title</h1>
+            <span class="pill" th:classappend="${'pill--' + video.status}" th:text="${video.status}"
+                  style="margin-top:8px">STATUS</span>
+        </div>
+        <form th:if="${video.status.name() == 'READY_FOR_REVIEW'}" method="post"
+              th:action="@{/videos/{v}/dashboard/approve(v=${video.id})}">
+            <button class="btn btn-primary" type="submit">Approve video &amp; resume</button>
+        </form>
+    </div>
+
+    <div class="clips">
+        <article class="clip card" th:each="clip : ${clips}" th:attr="data-status=${clip.status}">
+
+            <section class="media">
+                <div class="top">
+                    <h3 th:text="'clip ' + ${clip.clipIndex}">clip</h3>
+                    <span class="pill" th:classappend="${'pill--' + clip.status}" th:text="${clip.status}">STATUS</span>
+                </div>
+
+                <video controls preload="metadata" th:src="@{${clip.downloadUrl}}"></video>
+
+                <div class="score" th:if="${clip.score != null}">
+                    <div class="n"><span th:text="${clip.overallScore}">0</span><small>/100</small></div>
+                    <div class="bars">
+                        <div class="bar"><span>hook</span>
+                            <span class="track"><span class="fill" th:style="'width:' + ${clip.score.hook * 10} + '%'"></span></span>
+                            <b th:text="${clip.score.hook}">0</b></div>
+                        <div class="bar"><span>edu</span>
+                            <span class="track"><span class="fill" th:style="'width:' + ${clip.score.educationalValue * 10} + '%'"></span></span>
+                            <b th:text="${clip.score.educationalValue}">0</b></div>
+                        <div class="bar"><span>emotion</span>
+                            <span class="track"><span class="fill" th:style="'width:' + ${clip.score.emotion * 10} + '%'"></span></span>
+                            <b th:text="${clip.score.emotion}">0</b></div>
+                        <div class="bar"><span>visual</span>
+                            <span class="track"><span class="fill" th:style="'width:' + ${clip.score.visualInterest * 10} + '%'"></span></span>
+                            <b th:text="${clip.score.visualInterest}">0</b></div>
+                        <div class="bar"><span>viral</span>
+                            <span class="track"><span class="fill" th:style="'width:' + ${clip.score.virality * 10} + '%'"></span></span>
+                            <b th:text="${clip.score.virality}">0</b></div>
+                    </div>
+                    <p class="reason" th:text="${clip.score.reason}">reason</p>
+                </div>
+
+                <details class="tr"><summary>Transcript</summary><p th:text="${clip.transcript}">transcript</p></details>
+
+                <div class="actions">
+                    <form method="post" th:action="@{/videos/{v}/dashboard/clips/{c}/approve(v=${video.id},c=${clip.clipIndex})}">
+                        <button class="btn btn-good sm" type="submit">Approve</button></form>
+                    <form method="post" th:action="@{/videos/{v}/dashboard/clips/{c}/reject(v=${video.id},c=${clip.clipIndex})}">
+                        <button class="btn btn-bad sm" type="submit">Reject</button></form>
+                    <a class="btn btn-ghost sm" th:href="@{${clip.downloadUrl}}">Download</a>
+                </div>
+
+                <form method="post" class="regen"
+                      th:action="@{/videos/{v}/dashboard/clips/{c}/regenerate(v=${video.id},c=${clip.clipIndex})}">
+                    <select class="mini" name="field" aria-label="Field to regenerate">
+                        <option th:each="field : ${fields}" th:value="${field}" th:text="${field}"></option>
+                    </select>
+                    <select class="mini" name="platform" aria-label="Platform">
+                        <option value="">no platform</option>
+                        <option th:each="platform : ${clip.platforms}" th:value="${platform.platform}"
+                                th:text="${platform.platform}"></option>
+                    </select>
+                    <button class="btn btn-ghost sm" type="submit">Regenerate</button>
+                </form>
+            </section>
+
+            <form method="post" class="content"
+                  th:action="@{/videos/{v}/dashboard/clips/{c}/edit(v=${video.id},c=${clip.clipIndex})}">
+                <div class="field">
+                    <span class="flabel">Summary</span>
+                    <textarea name="summary" rows="3" th:text="${clip.summary}"></textarea>
+                </div>
+                <div class="frow">
+                    <div class="field"><span class="flabel">Keywords</span>
+                        <input name="keywords" th:value="${#strings.listJoin(clip.keywords, ', ')}"/></div>
+                    <div class="field"><span class="flabel">Tags</span>
+                        <input name="tags" th:value="${#strings.listJoin(clip.tags, ', ')}"/></div>
+                </div>
+
+                <div class="platform" th:each="platform, iter : ${clip.platforms}">
+                    <div class="phead" th:text="${platform.platform}">Platform</div>
+                    <input type="hidden" th:name="'platforms[' + ${iter.index} + '].platform'" th:value="${platform.platform}"/>
+                    <div class="field"><span class="flabel">Title</span>
+                        <input th:name="'platforms[' + ${iter.index} + '].title'" th:value="${platform.title}"/></div>
+                    <div class="field"><span class="flabel">Caption</span>
+                        <textarea rows="2" th:name="'platforms[' + ${iter.index} + '].caption'" th:text="${platform.caption}"></textarea></div>
+                    <div class="frow">
+                        <div class="field"><span class="flabel">Hashtags</span>
+                            <input th:name="'platforms[' + ${iter.index} + '].hashtags'" th:value="${#strings.listJoin(platform.hashtags, ', ')}"/></div>
+                        <div class="field"><span class="flabel">Call to action</span>
+                            <input th:name="'platforms[' + ${iter.index} + '].callToAction'" th:value="${platform.callToAction}"/></div>
+                    </div>
+                </div>
+
+                <div class="savebar"><button class="btn btn-primary" type="submit">Save changes</button></div>
+            </form>
+        </article>
+    </div>
+</main>
+</body>
+</html>
