@@ -10,9 +10,9 @@ spring:
       enabled: true
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/kirinuki
-    username: kirinuki
-    password: kirinuki
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
 
   jpa:
     hibernate:
@@ -31,7 +31,7 @@ spring:
       base-url: ${SEKISHO_URL}
       api-key: placeholder-jwt-injected
       chat:
-        model: ${SEKISHO_MODEL}
+        model: ${SEKISHO_MODEL:llama4:latest}
         max-tokens: 512
 
 sekisho:
