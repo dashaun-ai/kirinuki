@@ -23,7 +23,7 @@ public class ProcessRunner {
             Future<String> errorOutput = drains.submit(() -> readFully(process.getErrorStream()));
 
             if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-                process.destroyForcibly();
+                kill(process);
                 throw new ExternalToolException(tool, "timed out after " + timeout);
             }
             if (process.exitValue() != 0) {
@@ -33,11 +33,16 @@ public class ProcessRunner {
             return standardOutput.get();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            process.destroyForcibly();
+            kill(process);
             throw new ExternalToolException(tool, "was interrupted", exception);
         } catch (ExecutionException exception) {
             throw new ExternalToolException(tool, "output could not be read", exception.getCause());
         }
+    }
+
+    private void kill(Process process) {
+        process.descendants().forEach(ProcessHandle::destroyForcibly);
+        process.destroyForcibly();
     }
 
     private Process start(String tool, List<String> command) {
