@@ -47,8 +47,19 @@ class ProcessRunnerTest {
     @Test
     void should_kill_the_tool_when_it_outruns_its_timeout() {
         assertThatExceptionOfType(ExternalToolException.class)
-                .isThrownBy(() -> processRunner.run("yt-dlp", List.of("sh", "-c", "exec sleep 30"),
+                .isThrownBy(() -> processRunner.run("yt-dlp", List.of("sh", "-c", "sleep 30"),
                         Duration.ofMillis(200)))
                 .withMessageContaining("yt-dlp timed out after PT0.2S");
+    }
+
+    @Test
+    void should_give_up_at_the_timeout_even_when_the_tool_spawned_children() {
+        long startedAt = System.nanoTime();
+
+        assertThatExceptionOfType(ExternalToolException.class)
+                .isThrownBy(() -> processRunner.run("ffmpeg", List.of("sh", "-c", "sleep 30"),
+                        Duration.ofMillis(200)));
+
+        assertThat(Duration.ofNanos(System.nanoTime() - startedAt)).isLessThan(Duration.ofSeconds(5));
     }
 }
