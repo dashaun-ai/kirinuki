@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Kirinuki — something went wrong</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<header class="topbar">
+    <div class="wrap topbar-inner">
+        <a class="brand" th:href="@{/}">
+            <span class="kanji">切り抜き</span>
+            <b>Kirinuki</b>
+            <span class="tag">clip pipeline</span>
+        </a>
+    </div>
+</header>
+
+<main class="wrap">
+    <p class="eyebrow" th:text="${status}">500</p>
+    <h1 class="page" th:text="${title}">Something went wrong</h1>
+
+    <div class="callout err">
+        <span th:text="${detail}">An unexpected error occurred.</span>
+    </div>
+
+    <p class="sub"><a class="btn btn-ghost sm" th:href="@{/}">Back to videos</a></p>
+</main>
+</body>
+</html>
