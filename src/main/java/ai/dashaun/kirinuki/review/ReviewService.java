@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import ai.dashaun.kirinuki.common.ClipReviewNotFoundException;
@@ -173,7 +174,13 @@ public class ReviewService {
                 .map(clip -> new ClipReview(UUID.randomUUID(), videoId, clip.clipIndex(), ReviewStatus.PENDING,
                         writeContent(clip), now, now))
                 .toList();
-        clipReviewRepository.saveAll(rows);
+        try {
+            clipReviewRepository.saveAll(rows);
+        } catch (DataIntegrityViolationException exception) {
+            if (!clipReviewRepository.existsByVideoId(videoId)) {
+                throw exception;
+            }
+        }
     }
 
     private ClipReview row(UUID videoId, int clipIndex) {

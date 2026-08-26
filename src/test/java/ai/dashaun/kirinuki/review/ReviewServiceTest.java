@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import ai.dashaun.kirinuki.common.ClipReviewNotFoundException;
 import ai.dashaun.kirinuki.common.InvalidRegenerationException;
@@ -116,6 +117,26 @@ class ReviewServiceTest {
         reviewService.review(VIDEO_ID);
 
         verify(clipReviewRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void should_reuse_the_existing_rows_when_another_request_seeds_the_same_video_first() throws IOException {
+        when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(false, true);
+        writeContentArtifact(List.of(content()));
+        when(clipReviewRepository.saveAll(anyList())).thenThrow(new DataIntegrityViolationException("duplicate key"));
+        when(clipReviewRepository.findByVideoIdOrderByClipIndex(VIDEO_ID)).thenReturn(List.of(row(1, content())));
+
+        assertThat(reviewService.review(VIDEO_ID)).hasSize(1);
+    }
+
+    @Test
+    void should_fail_when_seeding_is_rejected_and_no_rows_were_written() throws IOException {
+        when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(false, false);
+        writeContentArtifact(List.of(content()));
+        when(clipReviewRepository.saveAll(anyList())).thenThrow(new DataIntegrityViolationException("bad reference"));
+
+        assertThatExceptionOfType(DataIntegrityViolationException.class)
+                .isThrownBy(() -> reviewService.review(VIDEO_ID));
     }
 
     @Test
@@ -321,7 +342,7 @@ class ReviewServiceTest {
 
     private ScoredCandidate scored(int id, int overallScore, String text) {
         return new ScoredCandidate(new Candidate(id, 10.0, 40.0, 0, 9, text),
-                new CandidateScore(9, 8, 7, 5, 9, List.of("TikTok"), "strong hook"), overallScore);
+                new CandidateScore(9, 8, 7, 9, List.of("TikTok"), "strong hook"), overallScore);
     }
 
     private void writeScored(ScoredCandidate... scored) throws IOException {

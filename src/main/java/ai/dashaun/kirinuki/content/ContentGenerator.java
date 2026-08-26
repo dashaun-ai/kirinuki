@@ -34,12 +34,18 @@ public class ContentGenerator {
         List<ScoredCandidate> clips = readScored(scoredFile);
 
         List<ClipContent> content = new ArrayList<>();
+        int failures = 0;
         for (int index = 0; index < clips.size(); index++) {
             int clipIndex = index + 1;
+            ScoredCandidate clip = clips.get(index);
             log.info("Generating content for clip {}/{}", clipIndex, clips.size());
-            generateOne(clipIndex, clips.get(index), videoTitle).ifPresent(content::add);
+            Optional<ClipContent> generated = generateOne(clipIndex, clip, videoTitle);
+            if (generated.isEmpty()) {
+                failures++;
+            }
+            content.add(generated.orElseGet(() -> blank(clipIndex, platformsFor(clip))));
         }
-        if (content.isEmpty() && !clips.isEmpty()) {
+        if (failures == clips.size() && !clips.isEmpty()) {
             throw new KirinukiException("Every clip failed content generation; the model is likely unavailable");
         }
         write(content, target);
@@ -52,9 +58,14 @@ public class ContentGenerator {
             return Optional.of(new ClipContent(clipIndex, generated.summary(), generated.keywords(),
                     generated.tags(), generated.platforms()));
         } catch (RuntimeException exception) {
-            log.warn("Skipping clip {} — content generation failed: {}", clipIndex, exception.getMessage());
+            log.warn("Clip {} kept without content — generation failed: {}", clipIndex, exception.getMessage());
             return Optional.empty();
         }
+    }
+
+    private ClipContent blank(int clipIndex, List<String> platforms) {
+        return new ClipContent(clipIndex, "", List.of(), List.of(),
+                platforms.stream().map(platform -> new PlatformVariant(platform, "", "", List.of(), "")).toList());
     }
 
     private List<String> platformsFor(ScoredCandidate clip) {

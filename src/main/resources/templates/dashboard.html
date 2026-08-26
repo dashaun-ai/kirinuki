@@ -52,9 +52,6 @@
                         <div class="bar"><span>emotion</span>
                             <span class="track"><span class="fill" th:style="'width:' + ${clip.score.emotion * 10} + '%'"></span></span>
                             <b th:text="${clip.score.emotion}">0</b></div>
-                        <div class="bar"><span>visual</span>
-                            <span class="track"><span class="fill" th:style="'width:' + ${clip.score.visualInterest * 10} + '%'"></span></span>
-                            <b th:text="${clip.score.visualInterest}">0</b></div>
                         <div class="bar"><span>viral</span>
                             <span class="track"><span class="fill" th:style="'width:' + ${clip.score.virality * 10} + '%'"></span></span>
                             <b th:text="${clip.score.virality}">0</b></div>

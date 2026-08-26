@@ -10,9 +10,9 @@ spring:
       enabled: true
 
   datasource:
-    url: ${DATABASE_URL}
-    username: ${DATABASE_USERNAME}
-    password: ${DATABASE_PASSWORD}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/kirinuki}
+    username: ${DATABASE_USERNAME:kirinuki}
+    password: ${DATABASE_PASSWORD:kirinuki}
 
   jpa:
     hibernate:
@@ -28,19 +28,11 @@ spring:
 
   ai:
     openai:
-      base-url: ${SEKISHO_URL}
-      api-key: placeholder-jwt-injected
+      base-url: ${OPENAI_BASE_URL}
+      api-key: ${OPENAI_API_KEY}
       chat:
-        model: ${SEKISHO_MODEL:llama4:latest}
+        model: ${CHAT_MODEL:llama4:latest}
         max-tokens: 512
-
-sekisho:
-  client:
-    token-uri: ${INKAN_TOKEN_URI}
-    client-id: ${SEKISHO_CLIENT_ID}
-    client-secret: ${SEKISHO_CLIENT_SECRET}
-    scope: models.invoke
-  timeout: 5m
 
 server:
   port: 8080

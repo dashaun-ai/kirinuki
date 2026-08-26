@@ -287,7 +287,7 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
 
     private ScoredCandidate scored(int id, int overallScore, String text) {
         return new ScoredCandidate(new Candidate(id, 10.0 + id * 100, 40.0 + id * 100, id * 10, id * 10 + 9, text),
-                new CandidateScore(9, 8, 7, 5, 9, List.of("TikTok"), "strong hook"), overallScore);
+                new CandidateScore(9, 8, 7, 9, List.of("TikTok"), "strong hook"), overallScore);
     }
 
     private void writeArtifact(String artifact, Object content) throws IOException {

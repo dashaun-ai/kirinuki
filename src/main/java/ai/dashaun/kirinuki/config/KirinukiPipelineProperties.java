@@ -77,11 +77,10 @@ public record KirinukiPipelineProperties(
                 @DefaultValue("3") int hook,
                 @DefaultValue("2") int educationalValue,
                 @DefaultValue("1") int emotion,
-                @DefaultValue("1") int visualInterest,
                 @DefaultValue("3") int virality) {
 
             public int total() {
-                return hook + educationalValue + emotion + visualInterest + virality;
+                return hook + educationalValue + emotion + virality;
             }
         }
     }

@@ -1,5 +1,6 @@
 package ai.dashaun.kirinuki.pipeline;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,9 +57,14 @@ public class PipelineOrchestrator {
         try {
             Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
             video.setLastError(null);
+            boolean ranAnyStage = false;
             for (List<PipelineStage> stages = stagesByStatus.get(video.getStatus()); stages != null;
                     stages = stagesByStatus.get(video.getStatus())) {
                 runStages(stages, video);
+                ranAnyStage = true;
+            }
+            if (!ranAnyStage) {
+                videoRepository.save(video);
             }
             log.info("Pipeline paused at {} for video {}", video.getStatus(), videoId);
         } catch (RuntimeException exception) {
@@ -82,19 +88,21 @@ public class PipelineOrchestrator {
             var futures = stages.stream()
                     .map(stage -> executor.submit(() -> runArtifact(stage, video)))
                     .toList();
-            RuntimeException failure = null;
+            List<RuntimeException> failures = new ArrayList<>();
             for (var future : futures) {
                 try {
                     future.get();
                 } catch (ExecutionException exception) {
-                    failure = exception.getCause() instanceof RuntimeException runtime ? runtime
-                            : new KirinukiException("Feature extraction failed", exception.getCause());
+                    failures.add(exception.getCause() instanceof RuntimeException runtime ? runtime
+                            : new KirinukiException("Feature extraction failed", exception.getCause()));
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
-                    failure = new KirinukiException("Feature extraction interrupted", exception);
+                    failures.add(new KirinukiException("Feature extraction interrupted", exception));
                 }
             }
-            if (failure != null) {
+            if (!failures.isEmpty()) {
+                RuntimeException failure = failures.getFirst();
+                failures.stream().skip(1).forEach(failure::addSuppressed);
                 throw failure;
             }
         }

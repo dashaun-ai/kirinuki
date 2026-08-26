@@ -194,6 +194,29 @@ class PipelineOrchestratorTest {
     }
 
     @Test
+    void should_persist_the_cleared_error_when_no_stage_matches_the_status() {
+        video.setStatus(PipelineStatus.PUBLISHED);
+
+        orchestrator(stage(PipelineStatus.DOWNLOADING, "source.mp4")).advance(video.getId());
+
+        assertThat(video.getLastError()).isNull();
+        verify(videoRepository).save(video);
+    }
+
+    @Test
+    void should_keep_every_failure_when_more_than_one_fanned_out_stage_fails() {
+        video.setStatus(PipelineStatus.FEATURE_EXTRACTION);
+        PipelineStage scenes = stage(PipelineStatus.FEATURE_EXTRACTION, "scenes.json");
+        PipelineStage audio = stage(PipelineStatus.FEATURE_EXTRACTION, "audio-features.json");
+        doThrow(new KirinukiException("scene detection failed")).when(scenes).run(video);
+        doThrow(new KirinukiException("ffmpeg exited with 1")).when(audio).run(video);
+
+        orchestrator(scenes, audio).advance(video.getId());
+
+        assertThat(video.getLastError()).isEqualTo("scene detection failed");
+    }
+
+    @Test
     void should_stay_quiet_when_the_video_no_longer_exists() {
         UUID unknownId = UUID.randomUUID();
         when(videoRepository.findById(unknownId)).thenReturn(Optional.empty());

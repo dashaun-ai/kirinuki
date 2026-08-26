@@ -20,18 +20,28 @@ public class CandidateScoreClient {
             - hook: does the opening line grab attention
             - educationalValue: does it teach something concrete
             - emotion: energy, humour, surprise, or tension
-            - visualInterest: estimate from the words alone; there is no video signal yet, so stay near 5 unless the text clearly implies a demo or reveal
             - virality: would someone share or rewatch it
             Also give suggestedPlatforms (the platforms it best fits) and reason (one short sentence).
             Do NOT return an overall score.
 
-            Be strict. Most candidates are average (3-5). Reserve high scores for genuinely strong moments.
+            Calibrate against this scale:
+            - 1-3: filler, rambling, or setup a viewer would skip
+            - 4-5: below par; a real point, weakly delivered or incomplete
+            - 6-7: solid; a clear, useful moment worth publishing as it stands
+            - 8-9: exceptional; a standout hook or a genuinely surprising insight
+            - 10: the single best moment in the whole video
+
+            Do not cluster everything in the middle. A clear, well-explained teaching moment is a 6 or 7,
+            not a 5. Reserve 4 and below for moments that are actually weak, not merely unglamorous.
 
             Example of a WEAK candidate — "Um, so yeah, let me just check my notes here, one second, okay
-            where were we, right, so the thing is": {"hook":1,"educationalValue":1,"emotion":1,"visualInterest":4,"virality":1,"suggestedPlatforms":[],"reason":"Filler with no content or hook."}
+            where were we, right, so the thing is": {"hook":1,"educationalValue":1,"emotion":1,"virality":1,"suggestedPlatforms":[],"reason":"Filler with no content or hook."}
+
+            Example of a SOLID candidate — "The reason your bean is null here is that Spring hasn't finished
+            wiring the context yet, so constructor injection fixes what field injection cannot": {"hook":6,"educationalValue":7,"emotion":5,"virality":6,"suggestedPlatforms":["LinkedIn","Shorts"],"reason":"Clear explanation of a common bug with a concrete fix."}
 
             Example of a STRONG candidate — "Here's the mistake that cost us $50,000 in AWS bills overnight —
-            and the one config flag that would have stopped it": {"hook":9,"educationalValue":8,"emotion":8,"visualInterest":5,"virality":9,"suggestedPlatforms":["TikTok","LinkedIn","X"],"reason":"Strong stakes-driven hook with a concrete, shareable lesson."}
+            and the one config flag that would have stopped it": {"hook":9,"educationalValue":8,"emotion":8,"virality":9,"suggestedPlatforms":["TikTok","LinkedIn","X"],"reason":"Strong stakes-driven hook with a concrete, shareable lesson."}
             """;
 
     private final ChatClient chatClient;
