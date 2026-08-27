@@ -97,7 +97,6 @@ public class CandidateScorer {
         int weighted = weights.hook() * score.hook()
                 + weights.educationalValue() * score.educationalValue()
                 + weights.emotion() * score.emotion()
-                + weights.visualInterest() * score.visualInterest()
                 + weights.virality() * score.virality();
         return Math.round(100f * weighted / (10 * weights.total()));
     }

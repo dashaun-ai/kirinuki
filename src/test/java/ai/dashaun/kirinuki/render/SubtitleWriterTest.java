@@ -104,6 +104,13 @@ class SubtitleWriterTest {
     }
 
     @Test
+    void should_carry_a_rounded_up_hundredth_into_the_next_second() throws IOException {
+        String subtitles = write(List.of(new Word(" tick", 59.999, 60.5)), 0.0, 70.0, Map.of());
+
+        assertThat(subtitles).contains("Dialogue: 0,0:01:00.00,0:01:00.50,");
+    }
+
+    @Test
     void should_fail_when_the_subtitle_file_cannot_be_written() {
         SubtitleWriter subtitleWriter = new SubtitleWriter(properties(Map.of()));
 

@@ -73,8 +73,8 @@ public class SubtitleWriter {
     }
 
     private String timestamp(double seconds) {
-        int total = (int) seconds;
-        int centis = (int) Math.round((seconds - total) * 100);
-        return "%d:%02d:%02d.%02d".formatted(total / 3600, (total % 3600) / 60, total % 60, centis);
+        long centis = Math.round(seconds * 100);
+        long total = centis / 100;
+        return "%d:%02d:%02d.%02d".formatted(total / 3600, (total % 3600) / 60, total % 60, centis % 100);
     }
 }

@@ -2,22 +2,16 @@
 # `.envrc` is gitignored; this example is what ships. Never put a real secret in this file.
 
 # ---- Required -------------------------------------------------------------------------------
-# The client secret this app presents to Inkan for the client-credentials grant.
-export SEKISHO_CLIENT_SECRET="replace-me-with-the-real-secret"
+# OpenAI-compatible base URL for the chat model. Note the /v1.
+export OPENAI_BASE_URL="https://your-gateway.example/v1"
+# The key or bearer token that endpoint expects.
+export OPENAI_API_KEY="replace-me-with-the-real-key"
 
-# ---- Endpoints (defaults suit the hosted gateway) -------------------------------------------
-# Sekisho's OpenAI-compatible base URL. Note the /v1.
-export SEKISHO_URL="sekisho"
-# Inkan's OAuth2 token endpoint.
-export INKAN_TOKEN_URI="Inkan"
-
-# ---- Identity and entitlement ----------------------------------------------------------------
-# The client id registered at Inkan.
-export SEKISHO_CLIENT_ID="id"
-# Must be a model the gateway permits this client.
-export SEKISHO_MODEL="llama4:latest"
+# ---- Model ------------------------------------------------------------------------------------
+# Must be a model the endpoint serves.
+export CHAT_MODEL="llama4:latest"
 
 # ---- Database (defaults suit the local docker compose) ---------------------------------------
-export DATABASE_URL="jdbc:postgresql://localhost:5432/db_name"
-export DATABASE_USERNAME="name"
-export DATABASE_PASSWORD="pass"
+export DATABASE_URL="jdbc:postgresql://localhost:5432/kirinuki"
+export DATABASE_USERNAME="kirinuki"
+export DATABASE_PASSWORD="kirinuki"

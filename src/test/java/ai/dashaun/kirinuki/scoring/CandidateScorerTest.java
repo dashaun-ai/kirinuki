@@ -30,6 +30,12 @@ class CandidateScorerTest {
 
     private static final String VIDEO_TITLE = "Spring Boot 4 in anger";
 
+    private static final Map<String, Object> WEIGHTS_TOTALLING_TEN = Map.of(
+            "kirinuki.pipeline.scoring.weights.hook", 3,
+            "kirinuki.pipeline.scoring.weights.educational-value", 2,
+            "kirinuki.pipeline.scoring.weights.emotion", 1,
+            "kirinuki.pipeline.scoring.weights.virality", 4);
+
     private final ObjectMapper objectMapper = new JsonMapper();
     private final CandidateScoreClient scoreClient = mock(CandidateScoreClient.class);
 
@@ -39,9 +45,9 @@ class CandidateScorerTest {
     @Test
     void should_use_the_configured_weights_when_computing_the_overall_score() throws IOException {
         Candidate candidate = candidate(0, 0.0, 30.0);
-        when(scoreClient.score(candidate, VIDEO_TITLE)).thenReturn(score(10, 0, 0, 0, 0));
+        when(scoreClient.score(candidate, VIDEO_TITLE)).thenReturn(score(10, 0, 0, 0));
 
-        List<ScoredCandidate> scored = score(List.of(candidate), Map.of());
+        List<ScoredCandidate> scored = score(List.of(candidate), WEIGHTS_TOTALLING_TEN);
 
         assertThat(scored).singleElement().extracting(ScoredCandidate::overallScore).isEqualTo(30);
     }
@@ -49,7 +55,7 @@ class CandidateScorerTest {
     @Test
     void should_reach_one_hundred_when_every_sub_score_is_full() throws IOException {
         Candidate candidate = candidate(0, 0.0, 30.0);
-        when(scoreClient.score(candidate, VIDEO_TITLE)).thenReturn(score(10, 10, 10, 10, 10));
+        when(scoreClient.score(candidate, VIDEO_TITLE)).thenReturn(score(10, 10, 10, 10));
 
         List<ScoredCandidate> scored = score(List.of(candidate), Map.of());
 
@@ -59,9 +65,9 @@ class CandidateScorerTest {
     @Test
     void should_clamp_sub_scores_before_weighting_them() throws IOException {
         Candidate candidate = candidate(0, 0.0, 30.0);
-        when(scoreClient.score(candidate, VIDEO_TITLE)).thenReturn(score(99, 0, 0, 0, 0));
+        when(scoreClient.score(candidate, VIDEO_TITLE)).thenReturn(score(99, 0, 0, 0));
 
-        List<ScoredCandidate> scored = score(List.of(candidate), Map.of());
+        List<ScoredCandidate> scored = score(List.of(candidate), WEIGHTS_TOTALLING_TEN);
 
         assertThat(scored).singleElement().extracting(ScoredCandidate::overallScore).isEqualTo(30);
     }
@@ -69,24 +75,23 @@ class CandidateScorerTest {
     @Test
     void should_honour_reweighted_dimensions_when_the_configuration_changes() throws IOException {
         Candidate candidate = candidate(0, 0.0, 30.0);
-        when(scoreClient.score(candidate, VIDEO_TITLE)).thenReturn(score(10, 0, 0, 0, 0));
+        when(scoreClient.score(candidate, VIDEO_TITLE)).thenReturn(score(10, 0, 0, 0));
 
         List<ScoredCandidate> scored = score(List.of(candidate), Map.of(
                 "kirinuki.pipeline.scoring.weights.hook", 1,
                 "kirinuki.pipeline.scoring.weights.educational-value", 1,
                 "kirinuki.pipeline.scoring.weights.emotion", 1,
-                "kirinuki.pipeline.scoring.weights.visual-interest", 1,
                 "kirinuki.pipeline.scoring.weights.virality", 1));
 
-        assertThat(scored).singleElement().extracting(ScoredCandidate::overallScore).isEqualTo(20);
+        assertThat(scored).singleElement().extracting(ScoredCandidate::overallScore).isEqualTo(25);
     }
 
     @Test
     void should_drop_a_candidate_that_scores_below_the_minimum() throws IOException {
         Candidate weak = candidate(0, 0.0, 30.0);
         Candidate strong = candidate(1, 100.0, 130.0);
-        when(scoreClient.score(weak, VIDEO_TITLE)).thenReturn(score(3, 3, 3, 3, 3));
-        when(scoreClient.score(strong, VIDEO_TITLE)).thenReturn(score(9, 9, 9, 9, 9));
+        when(scoreClient.score(weak, VIDEO_TITLE)).thenReturn(score(3, 3, 3, 3));
+        when(scoreClient.score(strong, VIDEO_TITLE)).thenReturn(score(9, 9, 9, 9));
 
         List<ScoredCandidate> scored = score(List.of(weak, strong),
                 Map.of("kirinuki.pipeline.scoring.min-score", 50));
@@ -99,9 +104,9 @@ class CandidateScorerTest {
         Candidate middle = candidate(0, 0.0, 30.0);
         Candidate best = candidate(1, 100.0, 130.0);
         Candidate worst = candidate(2, 200.0, 230.0);
-        when(scoreClient.score(middle, VIDEO_TITLE)).thenReturn(score(5, 5, 5, 5, 5));
-        when(scoreClient.score(best, VIDEO_TITLE)).thenReturn(score(9, 9, 9, 9, 9));
-        when(scoreClient.score(worst, VIDEO_TITLE)).thenReturn(score(1, 1, 1, 1, 1));
+        when(scoreClient.score(middle, VIDEO_TITLE)).thenReturn(score(5, 5, 5, 5));
+        when(scoreClient.score(best, VIDEO_TITLE)).thenReturn(score(9, 9, 9, 9));
+        when(scoreClient.score(worst, VIDEO_TITLE)).thenReturn(score(1, 1, 1, 1));
 
         List<ScoredCandidate> scored = score(List.of(middle, best, worst), Map.of());
 
@@ -113,9 +118,9 @@ class CandidateScorerTest {
         Candidate first = candidate(0, 0.0, 30.0);
         Candidate second = candidate(1, 100.0, 130.0);
         Candidate third = candidate(2, 200.0, 230.0);
-        when(scoreClient.score(first, VIDEO_TITLE)).thenReturn(score(9, 9, 9, 9, 9));
-        when(scoreClient.score(second, VIDEO_TITLE)).thenReturn(score(7, 7, 7, 7, 7));
-        when(scoreClient.score(third, VIDEO_TITLE)).thenReturn(score(5, 5, 5, 5, 5));
+        when(scoreClient.score(first, VIDEO_TITLE)).thenReturn(score(9, 9, 9, 9));
+        when(scoreClient.score(second, VIDEO_TITLE)).thenReturn(score(7, 7, 7, 7));
+        when(scoreClient.score(third, VIDEO_TITLE)).thenReturn(score(5, 5, 5, 5));
 
         List<ScoredCandidate> scored = score(List.of(first, second, third),
                 Map.of("kirinuki.pipeline.scoring.top-clips", 2));
@@ -127,8 +132,8 @@ class CandidateScorerTest {
     void should_keep_only_the_stronger_candidate_when_two_windows_mostly_overlap() throws IOException {
         Candidate shorter = candidate(0, 10.0, 40.0);
         Candidate longer = candidate(1, 20.0, 50.0);
-        when(scoreClient.score(shorter, VIDEO_TITLE)).thenReturn(score(4, 4, 4, 4, 4));
-        when(scoreClient.score(longer, VIDEO_TITLE)).thenReturn(score(8, 8, 8, 8, 8));
+        when(scoreClient.score(shorter, VIDEO_TITLE)).thenReturn(score(4, 4, 4, 4));
+        when(scoreClient.score(longer, VIDEO_TITLE)).thenReturn(score(8, 8, 8, 8));
 
         List<ScoredCandidate> scored = score(List.of(shorter, longer), Map.of());
 
@@ -139,8 +144,8 @@ class CandidateScorerTest {
     void should_keep_both_candidates_when_they_overlap_by_no_more_than_half() throws IOException {
         Candidate first = candidate(0, 0.0, 30.0);
         Candidate second = candidate(1, 20.0, 50.0);
-        when(scoreClient.score(first, VIDEO_TITLE)).thenReturn(score(8, 8, 8, 8, 8));
-        when(scoreClient.score(second, VIDEO_TITLE)).thenReturn(score(4, 4, 4, 4, 4));
+        when(scoreClient.score(first, VIDEO_TITLE)).thenReturn(score(8, 8, 8, 8));
+        when(scoreClient.score(second, VIDEO_TITLE)).thenReturn(score(4, 4, 4, 4));
 
         List<ScoredCandidate> scored = score(List.of(first, second), Map.of());
 
@@ -151,8 +156,8 @@ class CandidateScorerTest {
     void should_keep_adjacent_candidates_that_only_touch_at_the_boundary() throws IOException {
         Candidate first = candidate(0, 0.0, 30.0);
         Candidate second = candidate(1, 30.0, 60.0);
-        when(scoreClient.score(first, VIDEO_TITLE)).thenReturn(score(8, 8, 8, 8, 8));
-        when(scoreClient.score(second, VIDEO_TITLE)).thenReturn(score(4, 4, 4, 4, 4));
+        when(scoreClient.score(first, VIDEO_TITLE)).thenReturn(score(8, 8, 8, 8));
+        when(scoreClient.score(second, VIDEO_TITLE)).thenReturn(score(4, 4, 4, 4));
 
         List<ScoredCandidate> scored = score(List.of(first, second), Map.of());
 
@@ -164,7 +169,7 @@ class CandidateScorerTest {
         Candidate failing = candidate(0, 0.0, 30.0);
         Candidate scoring = candidate(1, 100.0, 130.0);
         when(scoreClient.score(failing, VIDEO_TITLE)).thenThrow(new KirinukiException("model exploded"));
-        when(scoreClient.score(scoring, VIDEO_TITLE)).thenReturn(score(5, 5, 5, 5, 5));
+        when(scoreClient.score(scoring, VIDEO_TITLE)).thenReturn(score(5, 5, 5, 5));
 
         List<ScoredCandidate> scored = score(List.of(failing, scoring), Map.of());
 
@@ -192,7 +197,7 @@ class CandidateScorerTest {
     @Test
     void should_pass_the_video_title_to_the_model_with_each_candidate() throws IOException {
         Candidate candidate = candidate(0, 0.0, 30.0);
-        when(scoreClient.score(candidate, VIDEO_TITLE)).thenReturn(score(5, 5, 5, 5, 5));
+        when(scoreClient.score(candidate, VIDEO_TITLE)).thenReturn(score(5, 5, 5, 5));
 
         score(List.of(candidate), Map.of());
 
@@ -226,8 +231,8 @@ class CandidateScorerTest {
         return new Candidate(id, start, end, id * 10, id * 10 + 9, "candidate " + id);
     }
 
-    private CandidateScore score(int hook, int educationalValue, int emotion, int visualInterest, int virality) {
-        return new CandidateScore(hook, educationalValue, emotion, visualInterest, virality, List.of("TikTok"),
+    private CandidateScore score(int hook, int educationalValue, int emotion, int virality) {
+        return new CandidateScore(hook, educationalValue, emotion, virality, List.of("TikTok"),
                 "because");
     }
 
