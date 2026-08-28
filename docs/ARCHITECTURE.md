@@ -4,7 +4,7 @@
 > moments, each with per-platform copy, parked for human review. **Publishing is optional** — the core
 > value is clip discovery and quality.
 
-**Status: as-built, 2026-08-27.** M1, M2 and M4 ship; M3 is partial (scene + audio extraction exist,
+**Status: as-built.** M1, M2 and M4 ship; M3 is partial (scene + audio extraction exist,
 OCR and visual analysis do not); M5 (auth) and M6 (publishing) are not started. Anything below marked
 *(not built)* is design intent, not code.
 
@@ -12,9 +12,9 @@ Four decisions define the shape:
 
 1. **Source: YouTube** — the creator submits a video URL; **yt-dlp** pulls it (ADR-0003).
 2. **Orchestration: Spring-native** — a `PipelineOrchestrator` `@Service` drives the pipeline; no
-   external workflow engine (ADR-0002).
+   external workflow engine.
 3. **Storage: local filesystem** — a directory per video is the blackboard and the source of truth.
-4. **Inference: local** — nothing leaves the box (ADR-0001, amended 2026-08-26: the LLM
+4. **Inference: local** — nothing leaves the box (amended: the LLM
    is reached over an OpenAI-compatible endpoint, which Ollama serves at `:11434/v1`).
 
 ---
@@ -78,7 +78,7 @@ flowchart TD
 | **Spring Boot 4 REST API** (Framework 7) | REST surface, business logic, hosts the orchestrator | ✅ |
 | **`PipelineOrchestrator`** | The state machine: Postgres-authoritative status, virtual-thread fan-out, artifact-keyed resume, startup recovery | ✅ |
 | **Spring AI** (`ChatClient`, structured output) | Scoring and content generation over an OpenAI-compatible endpoint | ✅ |
-| **PostgreSQL** + Flyway | `video` (metadata, status, `last_error`), `clip_review` (edits and decisions) | ✅ |
+| **PostgreSQL** + Flyway | `video` (metadata, status, `last_error`), `clip_review` (edits, decisions, `@Version`) | ✅ |
 | **Local filesystem** | The blackboard: source, audio, transcript, features, candidates, scores, clips | ✅ |
 | **`ProcessRunner`** | Every external binary: virtual-thread stream drains, per-tool timeout, descendant kill | ✅ |
 | **yt-dlp** · **FFmpeg** · **whisper-ctranslate2** | Acquisition, media transforms, ASR — external pinned binaries | ✅ |
@@ -275,7 +275,15 @@ the dashboard. Every clip failing throws.
 
 `READY_FOR_REVIEW` is **not** resumable, so recovery leaves it alone and it parks indefinitely. On first
 read, `ReviewService` seeds one `clip_review` row per clip from `content.json`; from then on that table
-is the source of truth for edits and decisions, and `content.json` is only the seed.
+is the source of truth for edits and decisions, and `content.json` is only the seed. Seeding tolerates
+losing a race — two first loads both insert, and the loser falls through to reading what the winner
+wrote rather than dying on the unique `(video_id, clip_index)` index.
+
+Edits are guarded by `@Version`. The version travels out on the response and back on the edit request,
+so the service edits against the version the client was *holding*, not against a fresh read — otherwise
+a form left open for minutes would still overwrite whatever landed in between. A mismatch is a `409`,
+not a `500`. `regenerate` deliberately runs outside a transaction: it makes N model calls between the
+read and the write, and `merge()` checks the version without pinning a connection for minutes.
 
 Approving the video moves it to `READY_TO_PUBLISH`, which **is** marked resumable although no stage
 declares it — deliberately, so the approved backlog drains automatically once a publish stage exists
@@ -386,9 +394,6 @@ extractors.
 **No authentication anywhere** (M5). Every endpoint and the whole dashboard are open.
 
 **Unbounded downloads.** `DownloadStage` carries neither `@ConcurrencyLimit` nor `@Retryable`.
-
-**Lost updates in review.** `edit`/`decide`/`regenerate` are read-modify-write across separate
-transactions with no `@Version`, so two concurrent edits to one clip silently lose one.
 
 **`@ConcurrencyLimit(1)` is per bean-method**, so the three `FEATURE_EXTRACTION` stages still run
 whisper and two ffmpeg passes simultaneously. It serialises across videos, not within one.

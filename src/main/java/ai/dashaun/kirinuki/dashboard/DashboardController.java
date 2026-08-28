@@ -133,8 +133,8 @@ public class DashboardController {
                 .map(platform -> new PlatformVariant(platform.getPlatform(), platform.getTitle(),
                         platform.getCaption(), splitCsv(platform.getHashtags()), platform.getCallToAction()))
                 .toList();
-        return new EditClipContentRequest(form.getSummary(), splitCsv(form.getKeywords()), splitCsv(form.getTags()),
-                platforms);
+        return new EditClipContentRequest(form.getVersion(), form.getSummary(), splitCsv(form.getKeywords()),
+                splitCsv(form.getTags()), platforms);
     }
 
     private List<String> splitCsv(String value) {
