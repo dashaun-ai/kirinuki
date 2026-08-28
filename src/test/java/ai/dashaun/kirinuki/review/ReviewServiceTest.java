@@ -2,6 +2,7 @@ package ai.dashaun.kirinuki.review;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,9 +25,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import ai.dashaun.kirinuki.common.ClipReviewNotFoundException;
 import ai.dashaun.kirinuki.common.InvalidRegenerationException;
+import ai.dashaun.kirinuki.common.StaleClipReviewException;
 import ai.dashaun.kirinuki.content.ClipContent;
 import ai.dashaun.kirinuki.content.ContentGenerationClient;
 import ai.dashaun.kirinuki.content.PlatformVariant;
@@ -59,6 +62,7 @@ class ReviewServiceTest {
     @BeforeEach
     void setUp() throws IOException {
         when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(true);
+        when(clipReviewRepository.save(any(ClipReview.class))).thenAnswer(call -> call.getArgument(0));
         when(videoService.findById(VIDEO_ID)).thenReturn(new VideoResponse(VIDEO_ID, "dQw4w9WgXcQ",
                 "https://youtu.be/dQw4w9WgXcQ", VIDEO_TITLE, 840, "your_javaguy", PipelineStatus.READY_FOR_REVIEW,
                 Instant.now(), null));
@@ -164,7 +168,7 @@ class ReviewServiceTest {
         stubRow(row(1, content()));
 
         ClipReviewResponse response = reviewService.edit(VIDEO_ID, 1,
-                new EditClipContentRequest("a sharper summary", null, null, null));
+                new EditClipContentRequest(0L, "a sharper summary", null, null, null));
 
         assertThat(response.summary()).isEqualTo("a sharper summary");
         assertThat(response.keywords()).containsExactly("spring boot", "virtual threads");
@@ -177,7 +181,7 @@ class ReviewServiceTest {
         stubRow(row(1, content()));
 
         ClipReviewResponse response = reviewService.edit(VIDEO_ID, 1,
-                new EditClipContentRequest(null, null, null, null));
+                new EditClipContentRequest(0L, null, null, null, null));
 
         assertThat(response.summary()).isEqualTo("what this video teaches");
     }
@@ -186,7 +190,7 @@ class ReviewServiceTest {
     void should_replace_the_platform_list_when_the_edit_request_carries_one() {
         stubRow(row(1, content()));
 
-        ClipReviewResponse response = reviewService.edit(VIDEO_ID, 1, new EditClipContentRequest(null, null, null,
+        ClipReviewResponse response = reviewService.edit(VIDEO_ID, 1, new EditClipContentRequest(0L, null, null, null,
                 List.of(new PlatformVariant("X", "x title", "x caption", List.of("java"), ""))));
 
         assertThat(response.platforms()).extracting(PlatformVariant::platform).containsExactly("X");
@@ -198,7 +202,7 @@ class ReviewServiceTest {
         Instant before = row.getUpdatedAt();
         stubRow(row);
 
-        reviewService.edit(VIDEO_ID, 1, new EditClipContentRequest("edited", null, null, null));
+        reviewService.edit(VIDEO_ID, 1, new EditClipContentRequest(0L, "edited", null, null, null));
 
         assertThat(row.getUpdatedAt()).isAfterOrEqualTo(before);
     }
@@ -316,6 +320,27 @@ class ReviewServiceTest {
     }
 
     @Test
+    void should_report_a_conflict_when_the_clip_changed_since_the_edit_was_loaded() {
+        ClipReview row = row(1, content());
+        stubRow(row);
+        when(clipReviewRepository.save(row)).thenThrow(new ObjectOptimisticLockingFailureException(ClipReview.class, row.getId()));
+
+        assertThatExceptionOfType(StaleClipReviewException.class)
+                .isThrownBy(() -> reviewService.edit(VIDEO_ID, 1, new EditClipContentRequest(0L, "stale", null, null, null)));
+    }
+
+    @Test
+    void should_edit_against_the_version_the_client_was_holding() {
+        ClipReview row = row(1, content());
+        row.setVersion(7L);
+        stubRow(row);
+
+        reviewService.edit(VIDEO_ID, 1, new EditClipContentRequest(3L, "from an older form", null, null, null));
+
+        assertThat(row.getVersion()).isEqualTo(3L);
+    }
+
+    @Test
     void should_delegate_to_the_video_service_when_the_whole_review_is_approved() {
         reviewService.approve(VIDEO_ID);
 
@@ -329,7 +354,7 @@ class ReviewServiceTest {
 
     private ClipReview row(int clipIndex, ClipContent content) {
         return new ClipReview(UUID.randomUUID(), VIDEO_ID, clipIndex, ReviewStatus.PENDING,
-                objectMapper.writeValueAsString(content), Instant.now(), Instant.now());
+                objectMapper.writeValueAsString(content), Instant.now(), Instant.now(), 0L);
     }
 
     private ClipContent content() {

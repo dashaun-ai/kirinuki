@@ -15,5 +15,6 @@ public record ClipReviewResponse(
         List<String> tags,
         List<PlatformVariant> platforms,
         int overallScore,
-        CandidateScore score) {
+        CandidateScore score,
+        long version) {
 }

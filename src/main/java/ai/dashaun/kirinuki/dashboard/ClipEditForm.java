@@ -12,6 +12,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class ClipEditForm {
 
+    private Long version;
     private String summary;
     private String keywords;
     private String tags;

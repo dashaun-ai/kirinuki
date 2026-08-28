@@ -85,6 +85,7 @@
 
             <form method="post" class="content"
                   th:action="@{/videos/{v}/dashboard/clips/{c}/edit(v=${video.id},c=${clip.clipIndex})}">
+                <input type="hidden" name="version" th:value="${clip.version}"/>
                 <div class="field">
                     <span class="flabel">Summary</span>
                     <textarea name="summary" rows="3" th:text="${clip.summary}"></textarea>

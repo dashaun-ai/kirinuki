@@ -103,6 +103,6 @@ class ClipReviewRepositoryIntegrationTest extends AbstractIntegrationTest {
 
     private ClipReview review(UUID videoId, int clipIndex) {
         return new ClipReview(UUID.randomUUID(), videoId, clipIndex, ReviewStatus.PENDING, "{\"clipIndex\":1}",
-                Instant.now(), Instant.now());
+                Instant.now(), Instant.now(), null);
     }
 }
