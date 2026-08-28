@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -99,7 +100,7 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
 
         ClipReviewResponse response = client.patch().uri("/videos/{videoId}/review/{clipIndex}", videoId, 1)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body("{\"summary\": \"a sharper summary\"}")
+                .body("{\"version\": 0, \"summary\": \"a sharper summary\"}")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(ClipReviewResponse.class)
@@ -116,7 +117,7 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
 
         ClipReviewResponse response = client.patch().uri("/videos/{videoId}/review/{clipIndex}", videoId, 1)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body("{\"summary\": \"a sharper summary\"}")
+                .body("{\"version\": 0, \"summary\": \"a sharper summary\"}")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(ClipReviewResponse.class)
@@ -125,6 +126,45 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(response.keywords()).containsExactly("spring boot");
         assertThat(response.platforms()).extracting(PlatformVariant::platform).containsExactly("TikTok");
+    }
+
+    @Test
+    void should_answer_conflict_when_a_clip_is_patched_from_a_stale_version() {
+        review();
+        client.patch().uri("/videos/{videoId}/review/{clipIndex}", videoId, 1)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"version\": 0, \"summary\": \"the first edit wins\"}")
+                .exchange()
+                .expectStatus().isOk();
+
+        ProblemDetail problem = client.patch().uri("/videos/{videoId}/review/{clipIndex}", videoId, 1)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"version\": 0, \"summary\": \"a second edit from a stale form\"}")
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.CONFLICT)
+                .expectBody(ProblemDetail.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(problem).isNotNull();
+        assertThat(problem.getTitle()).isEqualTo("Clip changed since you loaded it");
+        assertThat(review().getFirst().summary()).isEqualTo("the first edit wins");
+    }
+
+    @Test
+    void should_advance_the_version_when_a_clip_is_patched() {
+        review();
+
+        ClipReviewResponse response = client.patch().uri("/videos/{videoId}/review/{clipIndex}", videoId, 1)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"version\": 0, \"summary\": \"a sharper summary\"}")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(ClipReviewResponse.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(response.version()).isEqualTo(1);
     }
 
     @Test

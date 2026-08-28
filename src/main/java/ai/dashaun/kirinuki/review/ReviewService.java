@@ -11,11 +11,13 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 import ai.dashaun.kirinuki.common.ClipReviewNotFoundException;
 import ai.dashaun.kirinuki.common.InvalidRegenerationException;
 import ai.dashaun.kirinuki.common.KirinukiException;
+import ai.dashaun.kirinuki.common.StaleClipReviewException;
 import ai.dashaun.kirinuki.content.ClipContent;
 import ai.dashaun.kirinuki.content.ContentGenerationClient;
 import ai.dashaun.kirinuki.content.PlatformVariant;
@@ -61,10 +63,10 @@ public class ReviewService {
                 request.keywords() != null ? request.keywords() : current.keywords(),
                 request.tags() != null ? request.tags() : current.tags(),
                 request.platforms() != null ? request.platforms() : current.platforms());
+        row.setVersion(request.version());
         row.setContent(writeContent(edited));
         row.setUpdatedAt(Instant.now());
-        clipReviewRepository.save(row);
-        return toResponse(videoId, row, scoredByClipIndex(videoId));
+        return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId));
     }
 
     public ClipReviewResponse decide(UUID videoId, int clipIndex, ReviewStatus status) {
@@ -72,8 +74,7 @@ public class ReviewService {
         ClipReview row = row(videoId, clipIndex);
         row.setStatus(status);
         row.setUpdatedAt(Instant.now());
-        clipReviewRepository.save(row);
-        return toResponse(videoId, row, scoredByClipIndex(videoId));
+        return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId));
     }
 
     public VideoResponse approve(UUID videoId) {
@@ -90,8 +91,7 @@ public class ReviewService {
         ClipContent regenerated = applyRegenerated(readContent(row), request, videoTitle, transcript);
         row.setContent(writeContent(regenerated));
         row.setUpdatedAt(Instant.now());
-        clipReviewRepository.save(row);
-        return toResponse(videoId, row, scored);
+        return toResponse(videoId, save(videoId, clipIndex, row), scored);
     }
 
     private ClipContent applyRegenerated(ClipContent content, RegenerateFieldRequest request, String videoTitle,
@@ -172,7 +172,7 @@ public class ReviewService {
         Instant now = Instant.now();
         List<ClipReview> rows = content.stream()
                 .map(clip -> new ClipReview(UUID.randomUUID(), videoId, clip.clipIndex(), ReviewStatus.PENDING,
-                        writeContent(clip), now, now))
+                        writeContent(clip), now, now, null))
                 .toList();
         try {
             clipReviewRepository.saveAll(rows);
@@ -180,6 +180,14 @@ public class ReviewService {
             if (!clipReviewRepository.existsByVideoId(videoId)) {
                 throw exception;
             }
+        }
+    }
+
+    private ClipReview save(UUID videoId, int clipIndex, ClipReview row) {
+        try {
+            return clipReviewRepository.save(row);
+        } catch (ObjectOptimisticLockingFailureException exception) {
+            throw new StaleClipReviewException(videoId, clipIndex, exception);
         }
     }
 
@@ -215,7 +223,8 @@ public class ReviewService {
                 content.tags(),
                 content.platforms(),
                 overallScore,
-                score);
+                score,
+                row.getVersion() == null ? 0 : row.getVersion());
     }
 
     private ClipContent readContent(ClipReview row) {
