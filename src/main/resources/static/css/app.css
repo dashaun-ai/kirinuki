@@ -153,6 +153,15 @@ select.mini { font-family: var(--mono); font-size: 12px; color: var(--text); bac
 .platform .phead::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .savebar { display: flex; justify-content: flex-end; }
 
+.designed { padding: 18px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--surface-2) 35%, transparent); grid-column: 1 / -1; }
+.designed .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.designed h4 { margin: 0; font-size: 14px; font-family: var(--mono); letter-spacing: .02em; }
+.shot-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.shot-table th { text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); padding: 8px 10px; border-bottom: 1px solid var(--line-strong); }
+.shot-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.shot-table td:last-child { color: var(--text); }
+.shot-table tr:last-child td { border-bottom: 0; }
+
 /* processing */
 .proc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 8px 0 22px; }
 .proc-top h1 { font-size: 22px; margin: 6px 0 0; letter-spacing: -.01em; }

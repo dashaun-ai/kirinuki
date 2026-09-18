@@ -3,6 +3,7 @@ package ai.dashaun.kirinuki.review;
 import java.util.List;
 
 import ai.dashaun.kirinuki.content.PlatformVariant;
+import ai.dashaun.kirinuki.edit.EditPlan;
 import ai.dashaun.kirinuki.scoring.CandidateScore;
 
 public record ClipReviewResponse(
@@ -16,5 +17,6 @@ public record ClipReviewResponse(
         List<PlatformVariant> platforms,
         int overallScore,
         CandidateScore score,
-        long version) {
+        long version,
+        EditPlan designedEditPlan) {
 }

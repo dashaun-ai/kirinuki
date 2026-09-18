@@ -38,6 +38,7 @@ import ai.dashaun.kirinuki.pipeline.Artifacts;
 import ai.dashaun.kirinuki.pipeline.PipelineStatus;
 import ai.dashaun.kirinuki.scoring.CandidateScore;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
+import ai.dashaun.kirinuki.storage.StorageService;
 import ai.dashaun.kirinuki.video.VideoResponse;
 import ai.dashaun.kirinuki.video.VideoService;
 import tools.jackson.databind.ObjectMapper;
@@ -50,11 +51,12 @@ class ReviewServiceTest {
 
     private final ClipReviewRepository clipReviewRepository = mock(ClipReviewRepository.class);
     private final VideoService videoService = mock(VideoService.class);
+    private final StorageService storageService = mock(StorageService.class);
     private final ContentGenerationClient contentClient = mock(ContentGenerationClient.class);
     private final ObjectMapper objectMapper = new JsonMapper();
 
     private final ReviewService reviewService =
-            new ReviewService(clipReviewRepository, videoService, objectMapper, contentClient);
+            new ReviewService(clipReviewRepository, videoService, storageService, objectMapper, contentClient);
 
     @TempDir
     Path directory;
@@ -63,6 +65,7 @@ class ReviewServiceTest {
     void setUp() throws IOException {
         when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(true);
         when(clipReviewRepository.save(any(ClipReview.class))).thenAnswer(call -> call.getArgument(0));
+        when(storageService.exists(VIDEO_ID.toString(), Artifacts.EDIT_PLANS)).thenReturn(false);
         when(videoService.findById(VIDEO_ID)).thenReturn(new VideoResponse(VIDEO_ID, "dQw4w9WgXcQ",
                 "https://youtu.be/dQw4w9WgXcQ", VIDEO_TITLE, 840, "your_javaguy", PipelineStatus.READY_FOR_REVIEW,
                 Instant.now(), null));

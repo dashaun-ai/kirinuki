@@ -21,9 +21,11 @@ import ai.dashaun.kirinuki.common.StaleClipReviewException;
 import ai.dashaun.kirinuki.content.ClipContent;
 import ai.dashaun.kirinuki.content.ContentGenerationClient;
 import ai.dashaun.kirinuki.content.PlatformVariant;
+import ai.dashaun.kirinuki.edit.EditPlan;
 import ai.dashaun.kirinuki.pipeline.Artifacts;
 import ai.dashaun.kirinuki.scoring.CandidateScore;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
+import ai.dashaun.kirinuki.storage.StorageService;
 import ai.dashaun.kirinuki.video.VideoResponse;
 import ai.dashaun.kirinuki.video.VideoService;
 import tools.jackson.core.type.TypeReference;
@@ -34,13 +36,15 @@ public class ReviewService {
 
     private final ClipReviewRepository clipReviewRepository;
     private final VideoService videoService;
+    private final StorageService storageService;
     private final ObjectMapper objectMapper;
     private final ContentGenerationClient contentClient;
 
     public ReviewService(ClipReviewRepository clipReviewRepository, VideoService videoService,
-            ObjectMapper objectMapper, ContentGenerationClient contentClient) {
+            StorageService storageService, ObjectMapper objectMapper, ContentGenerationClient contentClient) {
         this.clipReviewRepository = clipReviewRepository;
         this.videoService = videoService;
+        this.storageService = storageService;
         this.objectMapper = objectMapper;
         this.contentClient = contentClient;
     }
@@ -48,8 +52,9 @@ public class ReviewService {
     public List<ClipReviewResponse> review(UUID videoId) {
         ensureSeeded(videoId);
         Map<Integer, ScoredCandidate> scored = scoredByClipIndex(videoId);
+        Map<Integer, EditPlan> plans = plansByClipIndex(videoId);
         return clipReviewRepository.findByVideoIdOrderByClipIndex(videoId).stream()
-                .map(row -> toResponse(videoId, row, scored))
+                .map(row -> toResponse(videoId, row, scored, plans))
                 .toList();
     }
 
@@ -66,7 +71,7 @@ public class ReviewService {
         row.setVersion(request.version());
         row.setContent(writeContent(edited));
         row.setUpdatedAt(Instant.now());
-        return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId));
+        return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId), planFor(videoId, clipIndex));
     }
 
     public ClipReviewResponse decide(UUID videoId, int clipIndex, ReviewStatus status) {
@@ -74,7 +79,7 @@ public class ReviewService {
         ClipReview row = row(videoId, clipIndex);
         row.setStatus(status);
         row.setUpdatedAt(Instant.now());
-        return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId));
+        return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId), planFor(videoId, clipIndex));
     }
 
     public VideoResponse approve(UUID videoId) {
@@ -91,7 +96,7 @@ public class ReviewService {
         ClipContent regenerated = applyRegenerated(readContent(row), request, videoTitle, transcript);
         row.setContent(writeContent(regenerated));
         row.setUpdatedAt(Instant.now());
-        return toResponse(videoId, save(videoId, clipIndex, row), scored);
+        return toResponse(videoId, save(videoId, clipIndex, row), scored, planFor(videoId, clipIndex));
     }
 
     private ClipContent applyRegenerated(ClipContent content, RegenerateFieldRequest request, String videoTitle,
@@ -207,7 +212,8 @@ public class ReviewService {
         return byClipIndex;
     }
 
-    private ClipReviewResponse toResponse(UUID videoId, ClipReview row, Map<Integer, ScoredCandidate> scored) {
+    private ClipReviewResponse toResponse(UUID videoId, ClipReview row, Map<Integer, ScoredCandidate> scored,
+            Map<Integer, EditPlan> plans) {
         ClipContent content = readContent(row);
         ScoredCandidate candidate = scored.get(row.getClipIndex());
         String transcript = candidate == null ? null : candidate.candidate().text();
@@ -224,7 +230,27 @@ public class ReviewService {
                 content.platforms(),
                 overallScore,
                 score,
-                row.getVersion() == null ? 0 : row.getVersion());
+                row.getVersion() == null ? 0 : row.getVersion(),
+                plans.get(row.getClipIndex()));
+    }
+
+    private Map<Integer, EditPlan> plansByClipIndex(UUID videoId) {
+        if (!storageService.exists(videoId.toString(), Artifacts.EDIT_PLANS)) {
+            return Map.of();
+        }
+        List<EditPlan> plans = readList(storageService.resolve(videoId.toString(), Artifacts.EDIT_PLANS),
+                new TypeReference<List<EditPlan>>() {
+                });
+        Map<Integer, EditPlan> byClipIndex = new HashMap<>();
+        for (EditPlan plan : plans) {
+            byClipIndex.put(plan.clipIndex(), plan);
+        }
+        return byClipIndex;
+    }
+
+    private Map<Integer, EditPlan> planFor(UUID videoId, int clipIndex) {
+        EditPlan plan = plansByClipIndex(videoId).get(clipIndex);
+        return plan == null ? Map.of() : Map.of(clipIndex, plan);
     }
 
     private ClipContent readContent(ClipReview row) {

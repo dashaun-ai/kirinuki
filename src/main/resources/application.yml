@@ -66,3 +66,14 @@ kirinuki:
     binary: yt-dlp
     metadata-timeout: 60s
     download-timeout: 30m
+  pipeline:
+    edit:
+      enabled: true
+      theme: spring
+      plan-model: ${EDIT_PLAN_MODEL:${CHAT_MODEL:llama4:latest}}
+      plan-temperature: 0.4
+      plan-max-tokens: 2048
+      min-shot-seconds: 0.8
+      max-shot-seconds: 6
+      max-source-seconds: 12
+      max-designed-ratio: 0.6

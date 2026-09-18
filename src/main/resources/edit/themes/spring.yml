@@ -1,0 +1,23 @@
+name: spring
+accent: "#6DB33F"
+topics:
+  - match: ["virtual thread", "loom", "spring.threads.virtual"]
+    prefer: [SLAM, DIAGRAM]
+    logos: [openjdk, spring]
+  - match: ["spring ai", "chatclient", "mcp", "rag", "embedding"]
+    prefer: [TERMINAL, DIAGRAM, LOGO_WALL]
+    logos: [spring, ollama]
+  - match: ["graalvm", "native image", "aot"]
+    prefer: [COUNTER, SLAM]
+    logos: [graalvm, spring]
+  - match: ["restclient", "httpexchange", "api versioning"]
+    prefer: [CODE, HIGHLIGHT]
+  - match: ["testcontainers", "serviceconnection"]
+    prefer: [TERMINAL, LOGO_WALL]
+    logos: [testcontainers, docker, postgresql]
+vocabulary:
+  - Spring Boot 4
+  - Spring Framework 7
+  - Spring AI
+  - "@HttpExchange"
+  - ProblemDetail

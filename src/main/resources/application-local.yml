@@ -16,3 +16,8 @@ kirinuki:
       top-clips: 8
       min-score: 50
       timeout: 2h
+    edit:
+      enabled: true
+      plan-model: ${EDIT_PLAN_MODEL:${CHAT_MODEL:llama4:latest}}
+      plan-temperature: 0.4
+      plan-max-tokens: 2048
