@@ -13,10 +13,15 @@ import org.springframework.stereotype.Component;
 import ai.dashaun.kirinuki.candidate.TranscriptReader;
 import ai.dashaun.kirinuki.candidate.Word;
 import ai.dashaun.kirinuki.common.KirinukiException;
+import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 import ai.dashaun.kirinuki.media.AudioFeatures;
 import ai.dashaun.kirinuki.media.FfmpegClient;
+import ai.dashaun.kirinuki.media.FramingPlan;
 import ai.dashaun.kirinuki.media.Silence;
+import ai.dashaun.kirinuki.media.SpeakerSegment;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
+import ai.dashaun.kirinuki.vision.DominantSpeakerSelector;
+import ai.dashaun.kirinuki.vision.FaceTracks;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -30,34 +35,40 @@ public class ClipRenderer {
     private final SubtitleWriter subtitleWriter;
     private final FfmpegClient ffmpegClient;
     private final BoundaryRefiner boundaryRefiner;
+    private final DominantSpeakerSelector dominantSpeakerSelector;
+    private final KirinukiPipelineProperties properties;
 
     public ClipRenderer(ObjectMapper objectMapper, TranscriptReader transcriptReader, SubtitleWriter subtitleWriter,
-            FfmpegClient ffmpegClient, BoundaryRefiner boundaryRefiner) {
+            FfmpegClient ffmpegClient, BoundaryRefiner boundaryRefiner,
+            DominantSpeakerSelector dominantSpeakerSelector, KirinukiPipelineProperties properties) {
         this.objectMapper = objectMapper;
         this.transcriptReader = transcriptReader;
         this.subtitleWriter = subtitleWriter;
         this.ffmpegClient = ffmpegClient;
         this.boundaryRefiner = boundaryRefiner;
+        this.dominantSpeakerSelector = dominantSpeakerSelector;
+        this.properties = properties;
     }
 
     public void render(Path source, Path transcript, Path scoredFile, Path scenesFile, Path audioFeaturesFile,
-            Path clipDirectory, Path target) {
+            Path facesFile, Path clipDirectory, Path target) {
         List<ScoredCandidate> scored = readScored(scoredFile);
         List<Word> words = transcriptReader.readWords(transcript);
         List<Double> sceneCuts = readScenes(scenesFile);
         List<Silence> silences = readSilences(audioFeaturesFile);
+        FaceTracks faces = readFaces(facesFile);
         createDirectory(clipDirectory);
 
         List<Clip> clips = new ArrayList<>();
         for (int index = 0; index < scored.size(); index++) {
-            clips.add(renderOne(source, words, silences, sceneCuts, scored.get(index), index + 1, clipDirectory));
+            clips.add(renderOne(source, words, silences, sceneCuts, faces, scored.get(index), index + 1, clipDirectory));
         }
         log.info("Rendered {} clips into {}", clips.size(), clipDirectory);
         write(clips, target);
     }
 
     private Clip renderOne(Path source, List<Word> words, List<Silence> silences, List<Double> sceneCuts,
-            ScoredCandidate scored, int number, Path clipDirectory) {
+            FaceTracks faces, ScoredCandidate scored, int number, Path clipDirectory) {
         var candidate = scored.candidate();
         BoundaryRefiner.Bounds bounds = boundaryRefiner.refine(candidate, words, silences, sceneCuts);
         double start = bounds.start();
@@ -66,10 +77,31 @@ public class ClipRenderer {
         Path video = clipDirectory.resolve("clip-%d.mp4".formatted(number));
 
         subtitleWriter.write(words, start, end, subtitles);
-        ffmpegClient.renderVertical(source, start, end - start, subtitles, video);
+        FramingPlan plan = framingPlan(faces, words, start, end);
+        ffmpegClient.renderVertical(source, start, end - start, subtitles, video, plan);
 
         return new Clip(number, start, end, scored.overallScore(), scored.score().reason(),
                 video.getFileName().toString());
+    }
+
+    private FramingPlan framingPlan(FaceTracks faces, List<Word> words, double start, double end) {
+        String framing = properties.render().framing();
+        if (faces.tracks().isEmpty()) {
+            return null;
+        }
+        if ("active-speaker".equals(framing)) {
+            return dominantSpeakerSelector.select(faces.tracks(), words, start, end,
+                    faces.frameWidth(), faces.frameHeight(), properties.render().reframe())
+                    .map(region -> FramingPlan.single(region.width(), region.height(),
+                            new SpeakerSegment(start, end, region.x(), region.y())))
+                    .orElse(null);
+        }
+        if ("follow-speaker".equals(framing)) {
+            return dominantSpeakerSelector.plan(faces.tracks(), words, start, end,
+                    faces.frameWidth(), faces.frameHeight(), properties.render().reframe())
+                    .orElse(null);
+        }
+        return null;
     }
 
     private List<Double> readScenes(Path scenesFile) {
@@ -92,6 +124,18 @@ public class ClipRenderer {
             return objectMapper.readValue(Files.readString(audioFeaturesFile), AudioFeatures.class).silences();
         } catch (IOException exception) {
             throw new KirinukiException("Could not read audio features " + audioFeaturesFile, exception);
+        }
+    }
+
+    private FaceTracks readFaces(Path facesFile) {
+        if (!Files.exists(facesFile)) {
+            return FaceTracks.empty();
+        }
+        try {
+            return objectMapper.readValue(Files.readString(facesFile), FaceTracks.class);
+        } catch (IOException exception) {
+            log.warn("Could not read faces {}, continuing without reframing", facesFile, exception);
+            return FaceTracks.empty();
         }
     }
 
