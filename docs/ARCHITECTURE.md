@@ -142,7 +142,8 @@ That guard does not survive a restart and does not span instances.
 
 ## Pipeline stages — what each one does and what it emits
 
-Nine stages. Three share `FEATURE_EXTRACTION` and fan out.
+Nine stages, plus an optional face-extraction stage that joins the feature-extraction fan-out when
+`kirinuki.pipeline.visual.enabled` is true. Three (or four) share `FEATURE_EXTRACTION` and fan out.
 
 ```mermaid
 flowchart TD
@@ -151,7 +152,8 @@ flowchart TD
     C --> D1["TranscriptionStage"]
     C --> D2["SceneExtractionStage"]
     C --> D3["AudioExtractionStage"]
-    D1 & D2 & D3 --> E["CandidateGenerationStage<br/><i>CANDIDATE_GENERATION</i>"]
+    C --> D4["FaceExtractionStage<br/><i>optional</i>"]
+    D1 & D2 & D3 & D4 --> E["CandidateGenerationStage<br/><i>CANDIDATE_GENERATION</i>"]
     E --> F["ScoreCandidatesStage<br/><i>AI_ANALYSIS</i>"]
     F --> G["RenderClipsStage<br/><i>CLIP_RENDERING</i>"]
     G --> H["ContentGenerationStage<br/><i>CONTENT_GENERATION</i>"]
@@ -197,8 +199,20 @@ score, no library.
 
 **Output:** `audio-features.json` → `{silences: [{start, end}]}`.
 
-> **Only two of four extractors exist.** OCR and visual analysis are M3 and unbuilt. They are also what
-> content-aware reframing (FR-RENDER-6) needs — see *Known limitations*.
+### 3d. FaceExtractionStage — `FEATURE_EXTRACTION` → `faces.json`
+
+Optional (bean exists only when `visual.enabled`). In-process JavaCV (OpenCV) runs the SSD
+`res10_300x300` face detector (via the `dnn` module — deliberately not `FaceDetectorYN`, which drags in
+`videoio` and its missing OrbbecSDK native) on frames sampled every `visual.sample-interval`, associates
+detections into stable tracks, and records per-sample mouth-region motion. Frames are decoded with the
+same ffmpeg binary used everywhere else (AV1-safe), then downscaled to 640px for detection. Feeds
+*content-aware reframing* (FR-RENDER-6).
+
+**Output:** `faces.json` → `{frameWidth, frameHeight, tracks:[{id, samples:[{t, cx, cy, width, height, motion}]}]}`
+in source pixels.
+
+> **Only three of five extractors exist.** OCR is M3 and unbuilt. Face detection now exists as the
+> video side of content-aware reframing; OCR is still what full-screen code reframing would need.
 
 ### 4. CandidateGenerationStage — `CANDIDATE_GENERATION` → `candidates.json`
 
@@ -252,6 +266,14 @@ rebasing timestamps onto the clip start.
 
 Centre-cropping alone was tried and rejected: on a screen-share it slices code in half. `render.zoom`
 trades dead space against cropped edges.
+
+**Active-speaker reframing** (`render.framing=active-speaker`, needs `faces.json`) picks the clip's
+dominant speaker — for up to four speakers. It gathers every face sample overlapping the clip (across
+all tracks, so track fragmentation is irrelevant), clusters them spatially, and scores each cluster by
+mouth-region motion during the clip's speech. The winning cluster's centroid and face size size the
+crop: `[fg]crop=W:H:X:Y` around the face (sized by `render.reframe.margin` / `aspect`, clamped to the
+frame), scaled to width·zoom, over the blurred backdrop. Deterministic, no per-moment panning; if no
+faces or no `faces.json` it falls back to the default layout.
 
 **Output:** `clips/clip-{n}.mp4` and `clips/clip-{n}.ass`, plus `clips.json` →
 `List<Clip>` of `{index, start, end, overallScore, reason, video}`.
@@ -388,8 +410,8 @@ not installed just delays the same failure.
 ## Known limitations
 
 **Source resolution.** A 720p screen-share cropped to 9:16 yields 405×720 upscaled to 1080×1920. The
-blurred-fill layout is the deterministic fallback; content-aware ROI cropping needs the M3 OCR/visual
-extractors.
+blurred-fill layout is the deterministic fallback; face-based active-speaker reframing exists, but
+cropping to *content* (code, slides, text) still needs the M3 OCR extractor.
 
 **No authentication anywhere** (M5). Every endpoint and the whole dashboard are open.
 

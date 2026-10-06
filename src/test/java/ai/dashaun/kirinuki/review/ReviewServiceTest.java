@@ -34,6 +34,8 @@ import ai.dashaun.kirinuki.content.ClipContent;
 import ai.dashaun.kirinuki.content.ContentGenerationClient;
 import ai.dashaun.kirinuki.content.PlatformVariant;
 import ai.dashaun.kirinuki.candidate.Candidate;
+import ai.dashaun.kirinuki.edit.DesignedEditRepository;
+import ai.dashaun.kirinuki.edit.DesignedEditService;
 import ai.dashaun.kirinuki.pipeline.Artifacts;
 import ai.dashaun.kirinuki.pipeline.PipelineStatus;
 import ai.dashaun.kirinuki.scoring.CandidateScore;
@@ -53,10 +55,13 @@ class ReviewServiceTest {
     private final VideoService videoService = mock(VideoService.class);
     private final StorageService storageService = mock(StorageService.class);
     private final ContentGenerationClient contentClient = mock(ContentGenerationClient.class);
+    private final DesignedEditRepository designedEditRepository = mock(DesignedEditRepository.class);
+    private final DesignedEditService designedEditService = mock(DesignedEditService.class);
     private final ObjectMapper objectMapper = new JsonMapper();
 
     private final ReviewService reviewService =
-            new ReviewService(clipReviewRepository, videoService, storageService, objectMapper, contentClient);
+            new ReviewService(clipReviewRepository, videoService, storageService, objectMapper, contentClient,
+                    designedEditRepository, designedEditService);
 
     @TempDir
     Path directory;
@@ -66,6 +71,7 @@ class ReviewServiceTest {
         when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(true);
         when(clipReviewRepository.save(any(ClipReview.class))).thenAnswer(call -> call.getArgument(0));
         when(storageService.exists(VIDEO_ID.toString(), Artifacts.EDIT_PLANS)).thenReturn(false);
+        when(designedEditRepository.findByVideoIdOrderByClipIndex(VIDEO_ID)).thenReturn(List.of());
         when(videoService.findById(VIDEO_ID)).thenReturn(new VideoResponse(VIDEO_ID, "dQw4w9WgXcQ",
                 "https://youtu.be/dQw4w9WgXcQ", VIDEO_TITLE, 840, "your_javaguy", PipelineStatus.READY_FOR_REVIEW,
                 Instant.now(), null));

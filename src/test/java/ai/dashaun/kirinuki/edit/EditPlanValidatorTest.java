@@ -13,8 +13,8 @@ import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 class EditPlanValidatorTest {
 
     private final KirinukiPipelineProperties properties = new KirinukiPipelineProperties(
-            null, null, null, null, null, null, null, null,
-            new KirinukiPipelineProperties.Edit(true, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12, 0.6, null));
+            null, null, null, null, null, null, null, null, null,
+            new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12, 0.6, null, null, null));
 
     private final EditPlanValidator validator = new EditPlanValidator(properties);
 

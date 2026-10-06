@@ -254,6 +254,33 @@ class FfmpegClientTest {
     }
 
     @Test
+    void should_crop_the_foreground_to_the_active_speaker_region_when_provided() {
+        FramingPlan plan = FramingPlan.single(600, 750, new SpeakerSegment(92.5, 122.5, 0, 213));
+        client(Map.of()).renderVertical(SOURCE, 92.5, 30.0, SUBTITLES, TARGET, plan);
+
+        assertThat(filter()).contains("[fg]crop=600:750:0:213,scale=1080:-2[f]");
+        assertThat(filter()).doesNotContain("[fg]scale=1080:-2,crop=1080:ih:(iw-1080)/2:0[f]");
+    }
+
+    @Test
+    void should_build_a_piecewise_crop_that_switches_between_speakers() {
+        FramingPlan plan = new FramingPlan(600, 750, List.of(
+                new SpeakerSegment(92.5, 102.5, 0, 100),
+                new SpeakerSegment(102.5, 122.5, 300, 200)));
+        client(Map.of()).renderVertical(SOURCE, 92.5, 30.0, SUBTITLES, TARGET, plan);
+
+        assertThat(filter())
+                .contains("[fg]crop=600:750:'if(lt(t,10.0),0,300)':'if(lt(t,10.0),100,200)',scale=1080:-2[f]");
+    }
+
+    @Test
+    void should_keep_the_default_foreground_when_no_plan_is_provided() {
+        client(Map.of()).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET);
+
+        assertThat(filter()).contains("[fg]scale=1080:-2,crop=1080:ih:(iw-1080)/2:0[f]");
+    }
+
+    @Test
     void should_write_a_streamable_mp4_when_rendering_a_clip() {
         client(Map.of()).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET);
 

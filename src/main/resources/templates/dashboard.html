@@ -121,6 +121,7 @@
                     <span class="pill" th:if="${clip.designedEditPlan == null}">No plan</span>
                     <span class="pill" th:if="${clip.designedEditPlan != null and clip.designedEditPlan.shots.?[block.name() != 'SOURCE'].size() == 0}">Source-only fallback</span>
                     <span class="pill" th:if="${clip.designedEditPlan != null and clip.designedEditPlan.shots.?[block.name() != 'SOURCE'].size() > 0}">Plan ready</span>
+                    <span class="pill" th:if="${clip.designedEditStatus != null}" th:text="${clip.designedEditStatus}">PENDING</span>
                 </div>
                 <table class="shot-table" th:if="${clip.designedEditPlan != null}">
                     <thead>
@@ -139,6 +140,13 @@
                     </tr>
                     </tbody>
                 </table>
+                <div class="actions" th:if="${clip.designedEditPlan != null}">
+                    <form method="post" th:if="${clip.designedEditStatus == null or clip.designedEditStatus.name() != 'RENDERING'}"
+                          th:action="@{/videos/{v}/dashboard/clips/{c}/designed(v=${video.id},c=${clip.clipIndex})}">
+                        <button class="btn btn-primary sm" type="submit">Render designed edit</button>
+                    </form>
+                    <a class="btn btn-ghost sm" th:if="${clip.designedEditUrl != null}" th:href="${clip.designedEditUrl}">Download designed</a>
+                </div>
             </section>
         </article>
     </div>

@@ -24,16 +24,41 @@ public class TranscriptReader {
     public List<Word> readWords(Path transcript) {
         JsonNode root = read(transcript);
         List<Word> words = new ArrayList<>();
-        for (JsonNode segment : root.path("segments")) {
-            for (JsonNode word : segment.path("words")) {
-                words.add(new Word(word.path("word").asString(), word.path("start").asDouble(),
-                        word.path("end").asDouble()));
-            }
+        JsonNode segments = root.path("segments");
+        if (segments.isArray() && !segments.isEmpty()) {
+            readCTranslate2Words(segments, words);
+        } else if (root.path("transcription").isArray()) {
+            readWhisperCppWords(root.path("transcription"), words);
         }
         if (words.isEmpty()) {
             throw new KirinukiException("Transcript has no word-level timestamps: " + transcript);
         }
         return words;
+    }
+
+    private void readCTranslate2Words(JsonNode segments, List<Word> words) {
+        for (JsonNode segment : segments) {
+            for (JsonNode word : segment.path("words")) {
+                words.add(new Word(word.path("word").asString(), word.path("start").asDouble(),
+                        word.path("end").asDouble()));
+            }
+        }
+    }
+
+    private void readWhisperCppWords(JsonNode transcription, List<Word> words) {
+        for (JsonNode segment : transcription) {
+            JsonNode offsets = segment.path("offsets");
+            String text = segment.path("text").asString();
+            if (text.isBlank() || offsets.isMissingNode()) {
+                continue;
+            }
+            words.add(new Word(text, millisToSeconds(offsets.path("from").asLong()),
+                    millisToSeconds(offsets.path("to").asLong())));
+        }
+    }
+
+    private double millisToSeconds(long millis) {
+        return millis / 1000.0;
     }
 
     private JsonNode read(Path transcript) {

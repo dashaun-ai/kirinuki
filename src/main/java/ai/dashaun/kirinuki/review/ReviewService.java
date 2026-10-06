@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -21,6 +22,10 @@ import ai.dashaun.kirinuki.common.StaleClipReviewException;
 import ai.dashaun.kirinuki.content.ClipContent;
 import ai.dashaun.kirinuki.content.ContentGenerationClient;
 import ai.dashaun.kirinuki.content.PlatformVariant;
+import ai.dashaun.kirinuki.edit.DesignedEdit;
+import ai.dashaun.kirinuki.edit.DesignedEditRepository;
+import ai.dashaun.kirinuki.edit.DesignedEditService;
+import ai.dashaun.kirinuki.edit.DesignedEditStatus;
 import ai.dashaun.kirinuki.edit.EditPlan;
 import ai.dashaun.kirinuki.pipeline.Artifacts;
 import ai.dashaun.kirinuki.scoring.CandidateScore;
@@ -39,22 +44,28 @@ public class ReviewService {
     private final StorageService storageService;
     private final ObjectMapper objectMapper;
     private final ContentGenerationClient contentClient;
+    private final DesignedEditRepository designedEditRepository;
+    private final DesignedEditService designedEditService;
 
     public ReviewService(ClipReviewRepository clipReviewRepository, VideoService videoService,
-            StorageService storageService, ObjectMapper objectMapper, ContentGenerationClient contentClient) {
+            StorageService storageService, ObjectMapper objectMapper, ContentGenerationClient contentClient,
+            DesignedEditRepository designedEditRepository, DesignedEditService designedEditService) {
         this.clipReviewRepository = clipReviewRepository;
         this.videoService = videoService;
         this.storageService = storageService;
         this.objectMapper = objectMapper;
         this.contentClient = contentClient;
+        this.designedEditRepository = designedEditRepository;
+        this.designedEditService = designedEditService;
     }
 
     public List<ClipReviewResponse> review(UUID videoId) {
         ensureSeeded(videoId);
         Map<Integer, ScoredCandidate> scored = scoredByClipIndex(videoId);
         Map<Integer, EditPlan> plans = plansByClipIndex(videoId);
+        Map<Integer, DesignedEdit> designed = designedByClipIndex(videoId);
         return clipReviewRepository.findByVideoIdOrderByClipIndex(videoId).stream()
-                .map(row -> toResponse(videoId, row, scored, plans))
+                .map(row -> toResponse(videoId, row, scored, plans, designed))
                 .toList();
     }
 
@@ -71,7 +82,8 @@ public class ReviewService {
         row.setVersion(request.version());
         row.setContent(writeContent(edited));
         row.setUpdatedAt(Instant.now());
-        return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId), planFor(videoId, clipIndex));
+        return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId), planFor(videoId, clipIndex),
+                designedFor(videoId, clipIndex));
     }
 
     public ClipReviewResponse decide(UUID videoId, int clipIndex, ReviewStatus status) {
@@ -79,7 +91,8 @@ public class ReviewService {
         ClipReview row = row(videoId, clipIndex);
         row.setStatus(status);
         row.setUpdatedAt(Instant.now());
-        return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId), planFor(videoId, clipIndex));
+        return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId), planFor(videoId, clipIndex),
+                designedFor(videoId, clipIndex));
     }
 
     public VideoResponse approve(UUID videoId) {
@@ -96,7 +109,8 @@ public class ReviewService {
         ClipContent regenerated = applyRegenerated(readContent(row), request, videoTitle, transcript);
         row.setContent(writeContent(regenerated));
         row.setUpdatedAt(Instant.now());
-        return toResponse(videoId, save(videoId, clipIndex, row), scored, planFor(videoId, clipIndex));
+        return toResponse(videoId, save(videoId, clipIndex, row), scored, planFor(videoId, clipIndex),
+                designedFor(videoId, clipIndex));
     }
 
     private ClipContent applyRegenerated(ClipContent content, RegenerateFieldRequest request, String videoTitle,
@@ -213,12 +227,17 @@ public class ReviewService {
     }
 
     private ClipReviewResponse toResponse(UUID videoId, ClipReview row, Map<Integer, ScoredCandidate> scored,
-            Map<Integer, EditPlan> plans) {
+            Map<Integer, EditPlan> plans, Map<Integer, DesignedEdit> designed) {
         ClipContent content = readContent(row);
         ScoredCandidate candidate = scored.get(row.getClipIndex());
         String transcript = candidate == null ? null : candidate.candidate().text();
         CandidateScore score = candidate == null ? null : candidate.score();
         int overallScore = candidate == null ? 0 : candidate.overallScore();
+        DesignedEdit edit = designed.get(row.getClipIndex());
+        DesignedEditStatus editStatus = edit == null ? null : edit.getStatus();
+        String editUrl = editStatus == DesignedEditStatus.READY
+                ? "/videos/%s/clips/%d/designed".formatted(videoId, row.getClipIndex())
+                : null;
         return new ClipReviewResponse(
                 row.getClipIndex(),
                 row.getStatus(),
@@ -231,7 +250,9 @@ public class ReviewService {
                 overallScore,
                 score,
                 row.getVersion() == null ? 0 : row.getVersion(),
-                plans.get(row.getClipIndex()));
+                plans.get(row.getClipIndex()),
+                editStatus,
+                editUrl);
     }
 
     private Map<Integer, EditPlan> plansByClipIndex(UUID videoId) {
@@ -251,6 +272,17 @@ public class ReviewService {
     private Map<Integer, EditPlan> planFor(UUID videoId, int clipIndex) {
         EditPlan plan = plansByClipIndex(videoId).get(clipIndex);
         return plan == null ? Map.of() : Map.of(clipIndex, plan);
+    }
+
+    private Map<Integer, DesignedEdit> designedByClipIndex(UUID videoId) {
+        return designedEditRepository.findByVideoIdOrderByClipIndex(videoId).stream()
+                .collect(Collectors.toMap(DesignedEdit::getClipIndex, edit -> edit));
+    }
+
+    private Map<Integer, DesignedEdit> designedFor(UUID videoId, int clipIndex) {
+        return designedEditRepository.findByVideoIdAndClipIndex(videoId, clipIndex)
+                .map(edit -> Map.of(clipIndex, edit))
+                .orElse(Map.of());
     }
 
     private ClipContent readContent(ClipReview row) {

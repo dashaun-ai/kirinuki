@@ -21,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import ai.dashaun.kirinuki.AbstractIntegrationTest;
 import ai.dashaun.kirinuki.candidate.Candidate;
 import ai.dashaun.kirinuki.candidate.Word;
+import ai.dashaun.kirinuki.edit.DesignedEditService;
 import ai.dashaun.kirinuki.edit.EditPlan;
 import ai.dashaun.kirinuki.edit.EditPlanClient;
 import ai.dashaun.kirinuki.edit.Shot;
@@ -39,6 +40,9 @@ class EditPlanningStageIntegrationTest extends AbstractIntegrationTest {
 
     @MockitoBean
     private EditPlanClient editPlanClient;
+
+    @MockitoBean
+    private DesignedEditService designedEditService;
 
     @Autowired
     private PipelineOrchestrator pipelineOrchestrator;

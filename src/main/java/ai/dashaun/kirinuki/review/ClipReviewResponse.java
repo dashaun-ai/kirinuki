@@ -3,6 +3,7 @@ package ai.dashaun.kirinuki.review;
 import java.util.List;
 
 import ai.dashaun.kirinuki.content.PlatformVariant;
+import ai.dashaun.kirinuki.edit.DesignedEditStatus;
 import ai.dashaun.kirinuki.edit.EditPlan;
 import ai.dashaun.kirinuki.scoring.CandidateScore;
 
@@ -18,5 +19,7 @@ public record ClipReviewResponse(
         int overallScore,
         CandidateScore score,
         long version,
-        EditPlan designedEditPlan) {
+        EditPlan designedEditPlan,
+        DesignedEditStatus designedEditStatus,
+        String designedEditUrl) {
 }

@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 import ai.dashaun.kirinuki.content.PlatformVariant;
+import ai.dashaun.kirinuki.edit.DesignedEditService;
+import ai.dashaun.kirinuki.edit.DesignedEditStatus;
 import ai.dashaun.kirinuki.pipeline.PipelineStatus;
 import ai.dashaun.kirinuki.review.ContentField;
 import ai.dashaun.kirinuki.review.EditClipContentRequest;
@@ -28,12 +30,14 @@ public class DashboardController {
 
     private final VideoService videoService;
     private final ReviewService reviewService;
+    private final DesignedEditService designedEditService;
     private final KirinukiPipelineProperties properties;
 
     public DashboardController(VideoService videoService, ReviewService reviewService,
-            KirinukiPipelineProperties properties) {
+            DesignedEditService designedEditService, KirinukiPipelineProperties properties) {
         this.videoService = videoService;
         this.reviewService = reviewService;
+        this.designedEditService = designedEditService;
         this.properties = properties;
     }
 
@@ -97,6 +101,12 @@ public class DashboardController {
     @PostMapping("/videos/{videoId}/dashboard/approve")
     public String approveVideo(@PathVariable UUID videoId) {
         reviewService.approve(videoId);
+        return redirect(videoId);
+    }
+
+    @PostMapping("/videos/{videoId}/dashboard/clips/{clipIndex}/designed")
+    public String renderDesigned(@PathVariable UUID videoId, @PathVariable int clipIndex) {
+        designedEditService.render(videoId, clipIndex);
         return redirect(videoId);
     }
 

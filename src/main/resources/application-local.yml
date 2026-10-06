@@ -2,6 +2,21 @@ logging:
   level:
     org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
 
+spring:
+  ai:
+    openai:
+      base-url: ${OPENAI_BASE_URL:${SEKISHO_URL:https://sekisho.dashaun.ai/v1}}
+      api-key: ${OPENAI_API_KEY:${SEKISHO_API_KEY:placeholder}}
+      chat:
+        model: ${CHAT_MODEL:${SEKISHO_MODEL:llama4:latest}}
+
+sekisho:
+  client:
+    token-uri: ${SEKISHO_TOKEN_URI:${INKAN_TOKEN_URI:https://inkan.dashaun.ai/oauth2/token}}
+    client-id: ${SEKISHO_CLIENT_ID:ian}
+    client-secret: ${SEKISHO_CLIENT_SECRET:ian-dev-secret}
+    scope: ${SEKISHO_SCOPE:models.invoke}
+
 kirinuki:
   pipeline:
     media:
@@ -14,10 +29,13 @@ kirinuki:
       timeout: 2h
     scoring:
       top-clips: 8
-      min-score: 50
+      min-score: 20
       timeout: 2h
+    content:
+      temperature: 0.7
+      max-tokens: 4096
     edit:
       enabled: true
-      plan-model: ${EDIT_PLAN_MODEL:${CHAT_MODEL:llama4:latest}}
+      plan-model: ${EDIT_PLAN_MODEL:${SEKISHO_MODEL:llama4:latest}}
       plan-temperature: 0.4
-      plan-max-tokens: 2048
+      plan-max-tokens: 4096

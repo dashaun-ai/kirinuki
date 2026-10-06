@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import ai.dashaun.kirinuki.candidate.TranscriptReader;
 import ai.dashaun.kirinuki.common.KirinukiException;
+import ai.dashaun.kirinuki.edit.DesignedEditService;
 import ai.dashaun.kirinuki.edit.EditPlan;
 import ai.dashaun.kirinuki.edit.EditPlanner;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
@@ -30,14 +31,16 @@ class EditPlanningStage implements PipelineStage {
     private final ObjectMapper objectMapper;
     private final TranscriptReader transcriptReader;
     private final EditPlanner editPlanner;
+    private final DesignedEditService designedEditService;
     private final KirinukiPipelineProperties properties;
 
     EditPlanningStage(StorageService storageService, ObjectMapper objectMapper, TranscriptReader transcriptReader,
-            EditPlanner editPlanner, KirinukiPipelineProperties properties) {
+            EditPlanner editPlanner, DesignedEditService designedEditService, KirinukiPipelineProperties properties) {
         this.storageService = storageService;
         this.objectMapper = objectMapper;
         this.transcriptReader = transcriptReader;
         this.editPlanner = editPlanner;
+        this.designedEditService = designedEditService;
         this.properties = properties;
     }
 
@@ -71,6 +74,7 @@ class EditPlanningStage implements PipelineStage {
         } catch (IOException exception) {
             throw new KirinukiException("Could not write edit plans to " + target, exception);
         }
+        designedEditService.queueAutomaticRenders(video, plans);
     }
 
     private List<EditPlan> sourceOnlyPlans(Path scoredFile, Path transcriptFile) {

@@ -17,10 +17,11 @@ Each video moves through nine stages in order:
 3. **Scene extraction** detects visual cuts with ffmpeg
 4. **Audio extraction** detects silence boundaries
 5. **Transcription** runs whisper-ctranslate2 locally
-6. **Candidate generation** finds clip-worthy segments from the transcript
-7. **Scoring** sends each candidate to an LLM for sub-score analysis, then computes a weighted overall score
-8. **Clip rendering** cuts vertical 1080x1920 clips with blurred fill, gradient overlay and subtitles
-9. **Content generation** produces per-platform titles, captions, hashtags and calls to action
+6. **Face extraction** (optional, in-process JavaCV) locates speakers for active-speaker reframing
+7. **Candidate generation** finds clip-worthy segments from the transcript
+8. **Scoring** sends each candidate to an LLM for sub-score analysis, then computes a weighted overall score
+9. **Clip rendering** cuts vertical 1080x1920 clips with blurred fill, gradient overlay and subtitles
+10. **Content generation** produces per-platform titles, captions, hashtags and calls to action
 
 The pipeline is resumable. If a stage fails, fix the issue and call advance. Completed stages are
 skipped automatically based on their artifact files.
@@ -138,6 +139,31 @@ Subtitle appearance is configurable under `kirinuki.pipeline.render`:
 | `subtitle-font`       | Arial   | Font family                          |
 | `subtitle-size`       | 78      | Font size in ASS script coordinates  |
 | `subtitle-margin-bottom` | 200  | Distance from the bottom edge        |
+
+### Framing
+
+By default clips use the blurred-fill layout. For multi-person sources (side-by-side podcasts, panels of
+up to four) you can crop each clip to its dominant speaker:
+
+```yaml
+kirinuki:
+  pipeline:
+    visual:
+      enabled: true          # run face extraction (in-process JavaCV + OpenCV dnn SSD)
+      sample-interval: 5s    # how often to sample frames for face detection
+      min-confidence: 0.6    # YuNet face score threshold
+      min-face-scale: 0.04   # min face width as a fraction of the frame width
+    render:
+      framing: active-speaker   # blur-fill (default) or active-speaker
+      reframe:
+        margin: 3.0          # crop width = face width * margin
+        aspect: 1.25         # crop height / width
+        min-width: 480       # clamp lower bounds
+        min-height: 480
+```
+
+Face extraction runs as part of `FEATURE_EXTRACTION`; if it is disabled (or finds no faces) rendering
+falls back to the default blurred-fill layout.
 
 ## Observability
 

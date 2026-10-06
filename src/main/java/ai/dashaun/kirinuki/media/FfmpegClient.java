@@ -90,6 +90,11 @@ public class FfmpegClient {
     }
 
     public void renderVertical(Path source, double start, double duration, Path subtitles, Path target) {
+        renderVertical(source, start, duration, subtitles, target, null);
+    }
+
+    public void renderVertical(Path source, double start, double duration, Path subtitles, Path target,
+            FramingPlan plan) {
         KirinukiPipelineProperties.Render render = properties.render();
         String binary = properties.media().binary();
         processRunner.run(binary, List.of(binary,
@@ -97,7 +102,7 @@ public class FfmpegClient {
                 "-ss", String.valueOf(start),
                 "-i", source.toString(),
                 "-t", String.valueOf(duration),
-                "-filter_complex", verticalFilter(render, subtitles),
+                "-filter_complex", verticalFilter(render, subtitles, plan, start),
                 "-c:v", "libx264",
                 "-preset", render.preset(),
                 "-crf", String.valueOf(render.crf()),
@@ -106,7 +111,30 @@ public class FfmpegClient {
                 target.toString()), render.timeout());
     }
 
-    private String verticalFilter(KirinukiPipelineProperties.Render render, Path subtitles) {
+    public void extractFrame(Path source, double at, int maxWidth, Path output) {
+        String binary = properties.media().binary();
+        List<String> command = new ArrayList<>(List.of(binary, "-y", "-ss", String.valueOf(at),
+                "-i", source.toString(), "-frames:v", "1", "-q:v", "2"));
+        if (maxWidth > 0) {
+            command.add("-vf");
+            command.add("scale=%d:-2".formatted(maxWidth));
+        }
+        command.add(output.toString());
+        processRunner.run(binary, command, properties.media().timeout());
+    }
+
+    public void extractThumbnails(Path source, double interval, int maxWidth, Path outputDir) {
+        String binary = properties.media().binary();
+        processRunner.run(binary, List.of(binary,
+                "-y",
+                "-i", source.toString(),
+                "-vf", "fps=1/%s,scale=%d:-2".formatted(interval, maxWidth),
+                "-q:v", "2",
+                outputDir.resolve("frame-%05d.jpg").toString()), properties.media().timeout());
+    }
+
+    private String verticalFilter(KirinukiPipelineProperties.Render render, Path subtitles, FramingPlan plan,
+            double clipStart) {
         int width = render.width();
         int height = render.height();
         int blurWidth = Math.max(2, width / 8);
@@ -114,17 +142,47 @@ public class FfmpegClient {
         int zoomed = (int) Math.round(width * render.zoom() / 2) * 2;
         int gradientHeight = height / 6;
         int gradientTop = height - gradientHeight;
+        String foreground = plan == null
+                ? "[fg]scale=%d:-2,crop=%d:ih:(iw-%d)/2:0[f]".formatted(zoomed, width, width)
+                : "[fg]crop=%d:%d:%s:%s,scale=%d:-2[f]".formatted(plan.width(), plan.height(),
+                        cropValue(expression(plan.segments(), clipStart, SpeakerSegment::x)),
+                        cropValue(expression(plan.segments(), clipStart, SpeakerSegment::y)),
+                        zoomed);
         return ("[0:v]split=2[bg][fg];"
                 + "[bg]scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,boxblur=8:2,scale=%d:%d[b];"
-                + "[fg]scale=%d:-2,crop=%d:ih:(iw-%d)/2:0[f];"
+                + foreground + ";"
                 + "[b][f]overlay=(W-w)/2:(H-h)/2[comp];"
                 + "color=black:s=%dx%d,format=rgba,geq=r=0:g=0:b=0:a='220*Y/H'[grad];"
                 + "[comp][grad]overlay=0:%d:shortest=1,"
                 + "subtitles=%s")
                         .formatted(blurWidth, blurHeight, blurWidth, blurHeight, width, height,
-                                zoomed, width, width,
                                 width, gradientHeight,
                                 gradientTop,
                                 subtitles.toString());
+    }
+
+    private String cropValue(String expression) {
+        return expression.chars().anyMatch(character -> character == ',' || character == ':')
+                ? "'" + expression + "'"
+                : expression;
+    }
+
+    private String expression(List<SpeakerSegment> segments, double clipStart,
+            java.util.function.ToIntFunction<SpeakerSegment> value) {
+        if (segments.isEmpty()) {
+            return "0";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < segments.size(); index++) {
+            if (index == segments.size() - 1) {
+                builder.append(value.applyAsInt(segments.get(index)));
+            } else {
+                double boundary = segments.get(index + 1).from() - clipStart;
+                builder.append("if(lt(t,").append(boundary).append("),")
+                        .append(value.applyAsInt(segments.get(index))).append(",");
+            }
+        }
+        builder.append(")".repeat(Math.max(0, segments.size() - 1)));
+        return builder.toString();
     }
 }

@@ -33,9 +33,9 @@ class EditPlannerTest {
     private final EditPlanClient editPlanClient = mock(EditPlanClient.class);
     private final EditPlanValidator validator = new EditPlanValidator(
             new ai.dashaun.kirinuki.config.KirinukiPipelineProperties(
-                    null, null, null, null, null, null, null, null,
-                    new ai.dashaun.kirinuki.config.KirinukiPipelineProperties.Edit(true, "spring", "llama4:latest", 0.4,
-                            2048, 0.8, 6, 12, 0.6, null)));
+                    null, null, null, null, null, null, null, null, null,
+                    new ai.dashaun.kirinuki.config.KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest",
+                            0.4, 2048, 0.8, 6, 12, 0.6, null, null, null)));
 
     private final EditPlanner planner = new EditPlanner(objectMapper, transcriptReader, themeCatalog, editPlanClient,
             validator);

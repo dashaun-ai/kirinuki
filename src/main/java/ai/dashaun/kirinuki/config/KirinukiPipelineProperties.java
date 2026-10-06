@@ -16,10 +16,18 @@ public record KirinukiPipelineProperties(
         @DefaultValue Render render,
         @DefaultValue Scoring scoring,
         @DefaultValue Content content,
+        @DefaultValue Visual visual,
         @DefaultValue Edit edit) {
 
     public record Scenes(
             @DefaultValue("0.4") double threshold) {
+    }
+
+    public record Visual(
+            @DefaultValue("false") boolean enabled,
+            @DefaultValue("5s") Duration sampleInterval,
+            @DefaultValue("0.6") double minConfidence,
+            @DefaultValue("0.03") double minFaceScale) {
     }
 
     public record Content(
@@ -42,6 +50,7 @@ public record KirinukiPipelineProperties(
             @DefaultValue("base.en") String model,
             @DefaultValue("cpu") String device,
             @DefaultValue("int8") String computeType,
+            @DefaultValue("{audio} --model {model} --device {device} --compute_type {computeType} --word_timestamps True --output_format json --output_dir {outputDir}") String args,
             @DefaultValue("2h") Duration timeout) {
     }
 
@@ -52,6 +61,7 @@ public record KirinukiPipelineProperties(
     }
 
     public record Render(
+            @DefaultValue("blur-fill") String framing,
             @DefaultValue("1080") int width,
             @DefaultValue("1920") int height,
             @DefaultValue("1.0") double zoom,
@@ -65,13 +75,23 @@ public record KirinukiPipelineProperties(
             @DefaultValue("400ms") Duration leadIn,
             @DefaultValue("600ms") Duration tail,
             @DefaultValue("1200ms") Duration snapTolerance,
-            @DefaultValue("30m") Duration timeout) {
+            @DefaultValue("30m") Duration timeout,
+            @DefaultValue Reframe reframe) {
+
+        public record Reframe(
+                @DefaultValue("3.0") double margin,
+                @DefaultValue("1.25") double aspect,
+                @DefaultValue("480") int minWidth,
+                @DefaultValue("480") int minHeight,
+                @DefaultValue("8") double minSegmentSeconds) {
+        }
     }
 
     public record Scoring(
             @DefaultValue("8") int topClips,
             @DefaultValue("0") int minScore,
             @DefaultValue("0.0") double temperature,
+            @DefaultValue("2048") int maxTokens,
             @DefaultValue("30m") Duration timeout,
             @DefaultValue Weights weights) {
 
@@ -89,14 +109,18 @@ public record KirinukiPipelineProperties(
 
     public record Edit(
             @DefaultValue("true") boolean enabled,
+            @DefaultValue("true") boolean autoRender,
+            @DefaultValue("3") int topClips,
             @DefaultValue("spring") String theme,
-            @DefaultValue("${EDIT_PLAN_MODEL:${CHAT_MODEL:llama4:latest}}") String planModel,
+            @DefaultValue("${EDIT_PLAN_MODEL:${SEKISHO_MODEL:llama4:latest}}") String planModel,
             @DefaultValue("0.4") double planTemperature,
-            @DefaultValue("2048") int planMaxTokens,
+            @DefaultValue("4096") int planMaxTokens,
             @DefaultValue("0.8") double minShotSeconds,
             @DefaultValue("6") double maxShotSeconds,
             @DefaultValue("12") double maxSourceSeconds,
             @DefaultValue("0.6") double maxDesignedRatio,
+            @DefaultValue("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf") String fontPath,
+            @DefaultValue("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf") String boldFontPath,
             @DefaultValue Assets assets) {
 
         public record Assets(
@@ -104,4 +128,6 @@ public record KirinukiPipelineProperties(
                 @DefaultValue("30d") Duration cacheTtl) {
         }
     }
+
 }
+

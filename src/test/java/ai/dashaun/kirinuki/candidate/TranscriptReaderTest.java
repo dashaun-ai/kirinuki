@@ -53,6 +53,38 @@ class TranscriptReaderTest {
     }
 
     @Test
+    void should_read_whisper_cpp_word_level_segments_converting_milliseconds_to_seconds() throws IOException {
+        Path transcript = write("""
+                {
+                  "transcription": [
+                    {"text": "", "offsets": {"from": 0, "to": 0}},
+                    {"text": " Spring", "offsets": {"from": 0, "to": 640}},
+                    {"text": " Boot", "offsets": {"from": 640, "to": 1280}},
+                    {"text": " four.", "offsets": {"from": 1280, "to": 1880}}
+                  ]
+                }
+                """);
+
+        List<Word> words = transcriptReader.readWords(transcript);
+
+        assertThat(words).containsExactly(
+                new Word(" Spring", 0.0, 0.64),
+                new Word(" Boot", 0.64, 1.28),
+                new Word(" four.", 1.28, 1.88));
+    }
+
+    @Test
+    void should_fail_when_the_whisper_cpp_transcript_has_no_word_level_offsets() throws IOException {
+        Path transcript = write("""
+                {"transcription": [{"text": "Spring Boot four."}]}
+                """);
+
+        assertThatExceptionOfType(KirinukiException.class)
+                .isThrownBy(() -> transcriptReader.readWords(transcript))
+                .withMessageContaining("no word-level timestamps");
+    }
+
+    @Test
     void should_fail_when_the_transcript_is_missing() {
         assertThatExceptionOfType(KirinukiException.class)
                 .isThrownBy(() -> transcriptReader.readWords(directory.resolve("absent.json")))
