@@ -1,0 +1,11 @@
+spring:
+  ai:
+    openai:
+      base-url: http://localhost:11434/v1
+      api-key: test-key
+      chat:
+        model: test-model
+
+kirinuki:
+  rate-limit:
+    enabled: false

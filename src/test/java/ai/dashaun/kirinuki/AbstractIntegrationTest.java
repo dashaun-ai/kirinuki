@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import ai.dashaun.kirinuki.edit.DesignedEditRepository;
 import ai.dashaun.kirinuki.review.ClipReviewRepository;
 import ai.dashaun.kirinuki.video.VideoRepository;
 
@@ -34,9 +35,13 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected ClipReviewRepository clipReviewRepository;
 
+    @Autowired
+    protected DesignedEditRepository designedEditRepository;
+
     @BeforeEach
     void clearDatabase() {
         clipReviewRepository.deleteAll();
+        designedEditRepository.deleteAll();
         videoRepository.deleteAll();
     }
 }

@@ -117,8 +117,8 @@ public class CandidateGenerator {
     }
 
     private List<Group> groups(List<Segment> segments) {
-        double minimum = properties.candidates().minDuration().toSeconds();
-        double maximum = properties.candidates().maxDuration().toSeconds();
+        double minimum = properties.candidates().minDuration().toNanos() / 1_000_000_000.0;
+        double maximum = properties.candidates().maxDuration().toNanos() / 1_000_000_000.0;
         List<Group> groups = new ArrayList<>();
 
         int start = 0;

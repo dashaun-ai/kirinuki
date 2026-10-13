@@ -63,14 +63,17 @@
 
                 <div class="actions">
                     <form method="post" th:action="@{/videos/{v}/dashboard/clips/{c}/approve(v=${video.id},c=${clip.clipIndex})}">
+                        <input type="hidden" name="version" th:value="${clip.version}"/>
                         <button class="btn btn-good sm" type="submit">Approve</button></form>
                     <form method="post" th:action="@{/videos/{v}/dashboard/clips/{c}/reject(v=${video.id},c=${clip.clipIndex})}">
+                        <input type="hidden" name="version" th:value="${clip.version}"/>
                         <button class="btn btn-bad sm" type="submit">Reject</button></form>
                     <a class="btn btn-ghost sm" th:href="@{${clip.downloadUrl}}">Download</a>
                 </div>
 
                 <form method="post" class="regen"
                       th:action="@{/videos/{v}/dashboard/clips/{c}/regenerate(v=${video.id},c=${clip.clipIndex})}">
+                    <input type="hidden" name="version" th:value="${clip.version}"/>
                     <select class="mini" name="field" aria-label="Field to regenerate">
                         <option th:each="field : ${fields}" th:value="${field}" th:text="${field}"></option>
                     </select>
@@ -114,6 +117,40 @@
 
                 <div class="savebar"><button class="btn btn-primary" type="submit">Save changes</button></div>
             </form>
+
+            <section class="designed" th:if="${editEnabled}">
+                <div class="top">
+                    <h4>Designed edit</h4>
+                    <span class="pill" th:if="${clip.designedEditPlan == null}">No plan</span>
+                    <span class="pill" th:if="${clip.designedEditPlan != null and clip.designedEditPlan.shots.?[block.name() != 'SOURCE'].size() == 0}">Source-only fallback</span>
+                    <span class="pill" th:if="${clip.designedEditPlan != null and clip.designedEditPlan.shots.?[block.name() != 'SOURCE'].size() > 0}">Plan ready</span>
+                    <span class="pill" th:if="${clip.designedEditStatus != null}" th:text="${clip.designedEditStatus}">PENDING</span>
+                </div>
+                <table class="shot-table" th:if="${clip.designedEditPlan != null}">
+                    <thead>
+                    <tr><th>#</th><th>Time</th><th>Block</th><th>Content</th></tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="shot, iter : ${clip.designedEditPlan.shots}">
+                        <td th:text="${iter.index + 1}">1</td>
+                        <td th:text="${#numbers.formatDecimal(shot.in, 1, 1)} + '–' + ${#numbers.formatDecimal(shot.out, 1, 1)}">0.0–3.0</td>
+                        <td th:text="${shot.block}">SOURCE</td>
+                        <td>
+                            <span th:if="${shot.headline != null}" th:text="${shot.headline}">headline</span>
+                            <span th:if="${shot.subline != null}" th:text="${shot.subline}">subline</span>
+                            <span th:if="${shot.lines != null}" th:text="${#strings.listJoin(shot.lines, ' / ')}">lines</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                <div class="actions" th:if="${clip.designedEditPlan != null}">
+                    <form method="post" th:if="${clip.designedEditStatus == null or clip.designedEditStatus.name() != 'RENDERING'}"
+                          th:action="@{/videos/{v}/dashboard/clips/{c}/designed(v=${video.id},c=${clip.clipIndex})}">
+                        <button class="btn btn-primary sm" type="submit">Render designed edit</button>
+                    </form>
+                    <a class="btn btn-ghost sm" th:if="${clip.designedEditUrl != null}" th:href="${clip.designedEditUrl}">Download designed</a>
+                </div>
+            </section>
         </article>
     </div>
 </main>

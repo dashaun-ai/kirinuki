@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ai.dashaun.kirinuki.video.VideoResponse;
@@ -38,19 +39,22 @@ public class ReviewController {
     }
 
     @PostMapping("/{clipIndex}/approve")
-    public ResponseEntity<ClipReviewResponse> approveClip(@PathVariable UUID videoId, @PathVariable int clipIndex) {
-        return ResponseEntity.ok(reviewService.decide(videoId, clipIndex, ReviewStatus.APPROVED));
+    public ResponseEntity<ClipReviewResponse> approveClip(@PathVariable UUID videoId, @PathVariable int clipIndex,
+            @RequestParam(required = false) Long version) {
+        return ResponseEntity.ok(reviewService.decide(videoId, clipIndex, ReviewStatus.APPROVED, version));
     }
 
     @PostMapping("/{clipIndex}/reject")
-    public ResponseEntity<ClipReviewResponse> rejectClip(@PathVariable UUID videoId, @PathVariable int clipIndex) {
-        return ResponseEntity.ok(reviewService.decide(videoId, clipIndex, ReviewStatus.REJECTED));
+    public ResponseEntity<ClipReviewResponse> rejectClip(@PathVariable UUID videoId, @PathVariable int clipIndex,
+            @RequestParam(required = false) Long version) {
+        return ResponseEntity.ok(reviewService.decide(videoId, clipIndex, ReviewStatus.REJECTED, version));
     }
 
     @PostMapping("/{clipIndex}/regenerate")
     public ResponseEntity<ClipReviewResponse> regenerate(@PathVariable UUID videoId, @PathVariable int clipIndex,
-            @Valid @RequestBody RegenerateFieldRequest request) {
-        return ResponseEntity.ok(reviewService.regenerate(videoId, clipIndex, request));
+            @Valid @RequestBody RegenerateFieldRequest request,
+            @RequestParam(required = false) Long version) {
+        return ResponseEntity.ok(reviewService.regenerate(videoId, clipIndex, request, version));
     }
 
     @PostMapping("/approve")

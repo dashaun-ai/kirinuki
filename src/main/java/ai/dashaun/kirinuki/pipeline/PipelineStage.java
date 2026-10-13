@@ -9,4 +9,8 @@ public interface PipelineStage {
     String artifact();
 
     void run(Video video);
+
+    default void afterCommit(Video video) {
+        // override to run work that must happen after the artifact is committed
+    }
 }

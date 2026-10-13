@@ -193,11 +193,11 @@ public class DominantSpeakerSelector {
     }
 
     private Cluster score(Cluster cluster, List<Double> speechTimes) {
-        double nearSpeech = cluster.samples.stream()
-                .filter(sample -> nearSpeech(sample.t(), speechTimes))
-                .mapToDouble(FaceSample::motion)
-                .sum();
-        cluster.score = nearSpeech > 0 ? nearSpeech
+        boolean anyNearSpeech = cluster.samples.stream()
+                .anyMatch(sample -> nearSpeech(sample.t(), speechTimes));
+        cluster.score = anyNearSpeech
+                ? cluster.samples.stream().filter(sample -> nearSpeech(sample.t(), speechTimes))
+                        .mapToDouble(FaceSample::motion).sum()
                 : cluster.samples.stream().mapToDouble(FaceSample::motion).sum();
         return cluster;
     }

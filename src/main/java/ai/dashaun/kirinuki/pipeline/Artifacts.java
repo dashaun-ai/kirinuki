@@ -12,7 +12,9 @@ public final class Artifacts {
     public static final String SCORED = "scored.json";
     public static final String CLIPS = "clips.json";
     public static final String CONTENT = "content.json";
+    public static final String EDIT_PLANS = "edit-plans.json";
     public static final String CLIP_DIRECTORY = "clips";
+    public static final String DESIGNED_DIRECTORY = "designed";
 
     private Artifacts() {
     }

@@ -34,10 +34,13 @@ import ai.dashaun.kirinuki.content.ClipContent;
 import ai.dashaun.kirinuki.content.ContentGenerationClient;
 import ai.dashaun.kirinuki.content.PlatformVariant;
 import ai.dashaun.kirinuki.candidate.Candidate;
+import ai.dashaun.kirinuki.edit.DesignedEditRepository;
+import ai.dashaun.kirinuki.edit.DesignedEditService;
 import ai.dashaun.kirinuki.pipeline.Artifacts;
 import ai.dashaun.kirinuki.pipeline.PipelineStatus;
 import ai.dashaun.kirinuki.scoring.CandidateScore;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
+import ai.dashaun.kirinuki.storage.StorageService;
 import ai.dashaun.kirinuki.video.VideoResponse;
 import ai.dashaun.kirinuki.video.VideoService;
 import tools.jackson.databind.ObjectMapper;
@@ -50,11 +53,15 @@ class ReviewServiceTest {
 
     private final ClipReviewRepository clipReviewRepository = mock(ClipReviewRepository.class);
     private final VideoService videoService = mock(VideoService.class);
+    private final StorageService storageService = mock(StorageService.class);
     private final ContentGenerationClient contentClient = mock(ContentGenerationClient.class);
+    private final DesignedEditRepository designedEditRepository = mock(DesignedEditRepository.class);
+    private final DesignedEditService designedEditService = mock(DesignedEditService.class);
     private final ObjectMapper objectMapper = new JsonMapper();
 
     private final ReviewService reviewService =
-            new ReviewService(clipReviewRepository, videoService, objectMapper, contentClient);
+            new ReviewService(clipReviewRepository, videoService, storageService, objectMapper, contentClient,
+                    designedEditRepository, designedEditService);
 
     @TempDir
     Path directory;
@@ -62,7 +69,10 @@ class ReviewServiceTest {
     @BeforeEach
     void setUp() throws IOException {
         when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(true);
-        when(clipReviewRepository.save(any(ClipReview.class))).thenAnswer(call -> call.getArgument(0));
+        when(clipReviewRepository.saveAndFlush(any(ClipReview.class))).thenAnswer(call -> call.getArgument(0));
+        when(storageService.exists(VIDEO_ID.toString(), Artifacts.EDIT_PLANS)).thenReturn(false);
+        when(storageService.exists(VIDEO_ID.toString(), Artifacts.SCORED)).thenReturn(true);
+        when(designedEditRepository.findByVideoIdOrderByClipIndex(VIDEO_ID)).thenReturn(List.of());
         when(videoService.findById(VIDEO_ID)).thenReturn(new VideoResponse(VIDEO_ID, "dQw4w9WgXcQ",
                 "https://youtu.be/dQw4w9WgXcQ", VIDEO_TITLE, 840, "your_javaguy", PipelineStatus.READY_FOR_REVIEW,
                 Instant.now(), null));
@@ -100,13 +110,19 @@ class ReviewServiceTest {
     }
 
     @Test
-    void should_seed_one_pending_row_per_clip_when_the_video_has_not_been_reviewed_yet() throws IOException {
-        when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(false);
-        writeContentArtifact(List.of(content(), new ClipContent(2, "second summary", List.of("k"), List.of("t"),
-                List.of())));
+    void should_return_an_empty_review_list_when_rows_have_not_been_seeded_yet() {
         when(clipReviewRepository.findByVideoIdOrderByClipIndex(VIDEO_ID)).thenReturn(List.of());
 
-        reviewService.review(VIDEO_ID);
+        assertThat(reviewService.review(VIDEO_ID)).isEmpty();
+    }
+
+    @Test
+    void should_seed_one_pending_row_per_clip_from_content() throws IOException {
+        when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(false);
+        Path contentPath = writeContentArtifact(List.of(content(), new ClipContent(2, "second summary", List.of("k"),
+                List.of("t"), List.of())));
+
+        reviewService.seedFromContent(VIDEO_ID, contentPath);
 
         ArgumentCaptor<List<ClipReview>> seeded = ArgumentCaptor.captor();
         verify(clipReviewRepository).saveAll(seeded.capture());
@@ -115,32 +131,23 @@ class ReviewServiceTest {
     }
 
     @Test
-    void should_not_seed_again_when_the_video_already_has_review_rows() {
-        when(clipReviewRepository.findByVideoIdOrderByClipIndex(VIDEO_ID)).thenReturn(List.of(row(1, content())));
+    void should_not_seed_again_when_the_video_already_has_review_rows() throws IOException {
+        when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(true);
+        Path contentPath = writeContentArtifact(List.of(content()));
 
-        reviewService.review(VIDEO_ID);
+        reviewService.seedFromContent(VIDEO_ID, contentPath);
 
         verify(clipReviewRepository, never()).saveAll(anyList());
     }
 
     @Test
-    void should_reuse_the_existing_rows_when_another_request_seeds_the_same_video_first() throws IOException {
-        when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(false, true);
-        writeContentArtifact(List.of(content()));
-        when(clipReviewRepository.saveAll(anyList())).thenThrow(new DataIntegrityViolationException("duplicate key"));
-        when(clipReviewRepository.findByVideoIdOrderByClipIndex(VIDEO_ID)).thenReturn(List.of(row(1, content())));
-
-        assertThat(reviewService.review(VIDEO_ID)).hasSize(1);
-    }
-
-    @Test
-    void should_fail_when_seeding_is_rejected_and_no_rows_were_written() throws IOException {
-        when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(false, false);
-        writeContentArtifact(List.of(content()));
+    void should_fail_when_seeding_is_rejected() throws IOException {
+        when(clipReviewRepository.existsByVideoId(VIDEO_ID)).thenReturn(false);
+        Path contentPath = writeContentArtifact(List.of(content()));
         when(clipReviewRepository.saveAll(anyList())).thenThrow(new DataIntegrityViolationException("bad reference"));
 
         assertThatExceptionOfType(DataIntegrityViolationException.class)
-                .isThrownBy(() -> reviewService.review(VIDEO_ID));
+                .isThrownBy(() -> reviewService.seedFromContent(VIDEO_ID, contentPath));
     }
 
     @Test
@@ -148,11 +155,11 @@ class ReviewServiceTest {
         ClipReview row = row(1, content());
         stubRow(row);
 
-        ClipReviewResponse response = reviewService.decide(VIDEO_ID, 1, ReviewStatus.APPROVED);
+        ClipReviewResponse response = reviewService.decide(VIDEO_ID, 1, ReviewStatus.APPROVED, 0L);
 
         assertThat(response.status()).isEqualTo(ReviewStatus.APPROVED);
         assertThat(row.getStatus()).isEqualTo(ReviewStatus.APPROVED);
-        verify(clipReviewRepository).save(row);
+        verify(clipReviewRepository).saveAndFlush(row);
     }
 
     @Test
@@ -160,7 +167,26 @@ class ReviewServiceTest {
         when(clipReviewRepository.findByVideoIdAndClipIndex(VIDEO_ID, 9)).thenReturn(Optional.empty());
 
         assertThatExceptionOfType(ClipReviewNotFoundException.class)
-                .isThrownBy(() -> reviewService.decide(VIDEO_ID, 9, ReviewStatus.APPROVED));
+                .isThrownBy(() -> reviewService.decide(VIDEO_ID, 9, ReviewStatus.APPROVED, 0L));
+    }
+
+    @Test
+    void should_fail_when_deciding_without_a_version() {
+        ClipReview row = row(1, content());
+        stubRow(row);
+
+        assertThatExceptionOfType(StaleClipReviewException.class)
+                .isThrownBy(() -> reviewService.decide(VIDEO_ID, 1, ReviewStatus.APPROVED, null));
+    }
+
+    @Test
+    void should_fail_when_deciding_with_a_stale_version() {
+        ClipReview row = row(1, content());
+        row.setVersion(2L);
+        stubRow(row);
+
+        assertThatExceptionOfType(StaleClipReviewException.class)
+                .isThrownBy(() -> reviewService.decide(VIDEO_ID, 1, ReviewStatus.APPROVED, 1L));
     }
 
     @Test
@@ -214,7 +240,7 @@ class ReviewServiceTest {
                 .thenReturn("a regenerated summary");
 
         ClipReviewResponse response =
-                reviewService.regenerate(VIDEO_ID, 1, new RegenerateFieldRequest(ContentField.SUMMARY, null));
+                reviewService.regenerate(VIDEO_ID, 1, new RegenerateFieldRequest(ContentField.SUMMARY, null), 0L);
 
         assertThat(response.summary()).isEqualTo("a regenerated summary");
         assertThat(response.keywords()).containsExactly("spring boot", "virtual threads");
@@ -224,7 +250,7 @@ class ReviewServiceTest {
     void should_send_the_scored_transcript_to_the_model_when_a_field_is_regenerated() {
         stubRow(row(1, content()));
 
-        reviewService.regenerate(VIDEO_ID, 1, new RegenerateFieldRequest(ContentField.SUMMARY, null));
+        reviewService.regenerate(VIDEO_ID, 1, new RegenerateFieldRequest(ContentField.SUMMARY, null), 0L);
 
         verify(contentClient).regenerateText(VIDEO_TITLE, "the moment a viewer would clip", "the summary");
     }
@@ -236,7 +262,7 @@ class ReviewServiceTest {
                 .thenReturn(List.of("fresh", "keywords"));
 
         ClipReviewResponse response =
-                reviewService.regenerate(VIDEO_ID, 1, new RegenerateFieldRequest(ContentField.KEYWORDS, null));
+                reviewService.regenerate(VIDEO_ID, 1, new RegenerateFieldRequest(ContentField.KEYWORDS, null), 0L);
 
         assertThat(response.keywords()).containsExactly("fresh", "keywords");
         assertThat(response.tags()).containsExactly("springboot", "java");
@@ -248,7 +274,7 @@ class ReviewServiceTest {
         when(contentClient.regenerateText(eq(VIDEO_TITLE), anyString(), anyString())).thenReturn("a new caption");
 
         ClipReviewResponse response = reviewService.regenerate(VIDEO_ID, 1,
-                new RegenerateFieldRequest(ContentField.CAPTION, "TikTok"));
+                new RegenerateFieldRequest(ContentField.CAPTION, "TikTok"), 0L);
 
         assertThat(response.platforms()).containsExactly(
                 new PlatformVariant("TikTok", "tiktok title", "a new caption", List.of("java"), ""),
@@ -261,7 +287,7 @@ class ReviewServiceTest {
         when(contentClient.regenerateText(eq(VIDEO_TITLE), anyString(), anyString())).thenReturn("a new title");
 
         ClipReviewResponse response = reviewService.regenerate(VIDEO_ID, 1,
-                new RegenerateFieldRequest(ContentField.TITLE, "tiktok"));
+                new RegenerateFieldRequest(ContentField.TITLE, "tiktok"), 0L);
 
         assertThat(response.platforms().getFirst().title()).isEqualTo("a new title");
     }
@@ -273,7 +299,7 @@ class ReviewServiceTest {
                 .thenReturn(List.of("springboot", "java25"));
 
         ClipReviewResponse response = reviewService.regenerate(VIDEO_ID, 1,
-                new RegenerateFieldRequest(ContentField.HASHTAGS, "TikTok"));
+                new RegenerateFieldRequest(ContentField.HASHTAGS, "TikTok"), 0L);
 
         assertThat(response.platforms().getFirst().hashtags()).containsExactly("springboot", "java25");
     }
@@ -284,7 +310,7 @@ class ReviewServiceTest {
 
         assertThatExceptionOfType(InvalidRegenerationException.class)
                 .isThrownBy(() -> reviewService.regenerate(VIDEO_ID, 1,
-                        new RegenerateFieldRequest(ContentField.CAPTION, null)))
+                        new RegenerateFieldRequest(ContentField.CAPTION, null), 0L))
                 .withMessageContaining("requires a platform");
         verifyNoInteractions(contentClient);
     }
@@ -295,7 +321,7 @@ class ReviewServiceTest {
 
         assertThatExceptionOfType(InvalidRegenerationException.class)
                 .isThrownBy(() -> reviewService.regenerate(VIDEO_ID, 1,
-                        new RegenerateFieldRequest(ContentField.CAPTION, "  ")));
+                        new RegenerateFieldRequest(ContentField.CAPTION, "  "), 0L));
     }
 
     @Test
@@ -304,7 +330,7 @@ class ReviewServiceTest {
 
         assertThatExceptionOfType(InvalidRegenerationException.class)
                 .isThrownBy(() -> reviewService.regenerate(VIDEO_ID, 1,
-                        new RegenerateFieldRequest(ContentField.CAPTION, "Threads")))
+                        new RegenerateFieldRequest(ContentField.CAPTION, "Threads"), 0L))
                 .withMessageContaining("not found for this clip");
         verifyNoInteractions(contentClient);
     }
@@ -314,7 +340,7 @@ class ReviewServiceTest {
         stubRow(row(7, content()));
         when(clipReviewRepository.findByVideoIdAndClipIndex(VIDEO_ID, 7)).thenReturn(Optional.of(row(7, content())));
 
-        reviewService.regenerate(VIDEO_ID, 7, new RegenerateFieldRequest(ContentField.SUMMARY, null));
+        reviewService.regenerate(VIDEO_ID, 7, new RegenerateFieldRequest(ContentField.SUMMARY, null), 0L);
 
         verify(contentClient).regenerateText(VIDEO_TITLE, "", "the summary");
     }
@@ -322,22 +348,22 @@ class ReviewServiceTest {
     @Test
     void should_report_a_conflict_when_the_clip_changed_since_the_edit_was_loaded() {
         ClipReview row = row(1, content());
+        row.setVersion(1L);
         stubRow(row);
-        when(clipReviewRepository.save(row)).thenThrow(new ObjectOptimisticLockingFailureException(ClipReview.class, row.getId()));
 
         assertThatExceptionOfType(StaleClipReviewException.class)
                 .isThrownBy(() -> reviewService.edit(VIDEO_ID, 1, new EditClipContentRequest(0L, "stale", null, null, null)));
     }
 
     @Test
-    void should_edit_against_the_version_the_client_was_holding() {
+    void should_allow_edit_when_client_version_matches_current_version() {
         ClipReview row = row(1, content());
-        row.setVersion(7L);
+        row.setVersion(3L);
         stubRow(row);
 
         reviewService.edit(VIDEO_ID, 1, new EditClipContentRequest(3L, "from an older form", null, null, null));
 
-        assertThat(row.getVersion()).isEqualTo(3L);
+        assertThat(row.getContent()).contains("from an older form");
     }
 
     @Test
@@ -345,6 +371,26 @@ class ReviewServiceTest {
         reviewService.approve(VIDEO_ID);
 
         verify(videoService).approveReview(VIDEO_ID);
+    }
+
+    @Test
+    void should_fail_when_regenerating_without_a_version() {
+        stubRow(row(1, content()));
+
+        assertThatExceptionOfType(StaleClipReviewException.class)
+                .isThrownBy(() -> reviewService.regenerate(VIDEO_ID, 1,
+                        new RegenerateFieldRequest(ContentField.SUMMARY, null), null));
+    }
+
+    @Test
+    void should_fail_when_regenerating_with_a_stale_version() {
+        ClipReview row = row(1, content());
+        row.setVersion(2L);
+        stubRow(row);
+
+        assertThatExceptionOfType(StaleClipReviewException.class)
+                .isThrownBy(() -> reviewService.regenerate(VIDEO_ID, 1,
+                        new RegenerateFieldRequest(ContentField.SUMMARY, null), 1L));
     }
 
     private void stubRow(ClipReview row) {
@@ -376,8 +422,9 @@ class ReviewServiceTest {
         when(videoService.artifactPath(VIDEO_ID, Artifacts.SCORED)).thenReturn(path);
     }
 
-    private void writeContentArtifact(List<ClipContent> content) throws IOException {
+    private Path writeContentArtifact(List<ClipContent> content) throws IOException {
         Path path = Files.writeString(directory.resolve(Artifacts.CONTENT), objectMapper.writeValueAsString(content));
         when(videoService.artifactPath(VIDEO_ID, Artifacts.CONTENT)).thenReturn(path);
+        return path;
     }
 }

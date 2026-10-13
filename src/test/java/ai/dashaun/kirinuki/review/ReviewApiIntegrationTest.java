@@ -48,6 +48,9 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
     private StorageService storageService;
 
     @Autowired
+    private ReviewService reviewService;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     private UUID videoId;
@@ -61,10 +64,11 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
                 scored(0, 88, "the first moment worth clipping"),
                 scored(1, 71, "the second moment worth clipping")));
         writeArtifact(Artifacts.CONTENT, List.of(content(1), content(2)));
+        reviewService.seedFromContent(videoId, storageService.resolve(videoId.toString(), Artifacts.CONTENT));
     }
 
     @Test
-    void should_seed_a_pending_review_row_per_clip_when_the_review_is_first_opened() {
+    void should_return_a_pending_review_row_per_clip_when_the_review_is_opened() {
         List<ClipReviewResponse> review = review();
 
         assertThat(review).extracting(ClipReviewResponse::clipIndex).containsExactly(1, 2);
@@ -171,7 +175,7 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
     void should_record_the_decision_when_a_clip_is_approved() {
         review();
 
-        client.post().uri("/videos/{videoId}/review/{clipIndex}/approve", videoId, 1)
+        client.post().uri("/videos/{videoId}/review/{clipIndex}/approve?version=0", videoId, 1)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(ClipReviewResponse.class)
@@ -187,7 +191,7 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
     void should_record_the_decision_when_a_clip_is_rejected() {
         review();
 
-        client.post().uri("/videos/{videoId}/review/{clipIndex}/reject", videoId, 2)
+        client.post().uri("/videos/{videoId}/review/{clipIndex}/reject?version=0", videoId, 2)
                 .exchange()
                 .expectStatus().isOk();
 
@@ -201,7 +205,7 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
     void should_answer_not_found_when_deciding_on_a_clip_that_does_not_exist() {
         review();
 
-        ProblemDetail problem = client.post().uri("/videos/{videoId}/review/{clipIndex}/approve", videoId, 9)
+        ProblemDetail problem = client.post().uri("/videos/{videoId}/review/{clipIndex}/approve?version=0", videoId, 9)
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody(ProblemDetail.class)
@@ -217,7 +221,7 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
         when(contentClient.regenerateText(anyString(), anyString(), anyString())).thenReturn("a regenerated summary");
 
         ClipReviewResponse response = client.post()
-                .uri("/videos/{videoId}/review/{clipIndex}/regenerate", videoId, 1)
+                .uri("/videos/{videoId}/review/{clipIndex}/regenerate?version=0", videoId, 1)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("{\"field\": \"SUMMARY\"}")
                 .exchange()
@@ -236,7 +240,7 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
         review();
 
         ProblemDetail problem = client.post()
-                .uri("/videos/{videoId}/review/{clipIndex}/regenerate", videoId, 1)
+                .uri("/videos/{videoId}/review/{clipIndex}/regenerate?version=0", videoId, 1)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("{\"field\": \"CAPTION\"}")
                 .exchange()
@@ -252,7 +256,7 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
     void should_answer_bad_request_when_the_regenerated_field_is_missing() {
         review();
 
-        client.post().uri("/videos/{videoId}/review/{clipIndex}/regenerate", videoId, 1)
+        client.post().uri("/videos/{videoId}/review/{clipIndex}/regenerate?version=0", videoId, 1)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("{}")
                 .exchange()
@@ -296,17 +300,18 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void should_answer_not_found_when_the_content_artifact_is_missing() throws IOException {
-        Files.delete(storageService.resolve(videoId.toString(), Artifacts.CONTENT));
+    void should_answer_ok_with_empty_list_when_no_review_rows_exist() {
+        clipReviewRepository.deleteAll();
 
-        ProblemDetail problem = client.get().uri("/videos/{videoId}/review", videoId)
+        List<ClipReviewResponse> review = client.get().uri("/videos/{videoId}/review", videoId)
                 .exchange()
-                .expectStatus().isNotFound()
-                .expectBody(ProblemDetail.class)
+                .expectStatus().isOk()
+                .expectBody(new ParameterizedTypeReference<List<ClipReviewResponse>>() {
+                })
                 .returnResult()
                 .getResponseBody();
 
-        assertThat(problem.getTitle()).isEqualTo("Artifact not found");
+        assertThat(review).isEmpty();
     }
 
     private List<ClipReviewResponse> review() {

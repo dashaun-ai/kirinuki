@@ -28,6 +28,7 @@ class PipelineStatusTest {
                 PipelineStatus.AI_ANALYSIS,
                 PipelineStatus.CLIP_RENDERING,
                 PipelineStatus.CONTENT_GENERATION,
+                PipelineStatus.EDIT_PLANNING,
                 PipelineStatus.READY_FOR_REVIEW,
                 PipelineStatus.READY_TO_PUBLISH,
                 PipelineStatus.PUBLISHED);

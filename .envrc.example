@@ -1,15 +1,15 @@
 # Copy to `.envrc`, fill in the real values, then `direnv allow` (or `source .envrc`).
 # `.envrc` is gitignored; this example is what ships. Never put a real secret in this file.
 
-# ---- Required -------------------------------------------------------------------------------
-# OpenAI-compatible base URL for the chat model. Note the /v1.
-export OPENAI_BASE_URL="https://your-gateway.example/v1"
-# The key or bearer token that endpoint expects.
-export OPENAI_API_KEY="replace-me-with-the-real-key"
-
-# ---- Model ------------------------------------------------------------------------------------
-# Must be a model the endpoint serves.
-export CHAT_MODEL="llama4:latest"
+# ---- Inference (required, no defaults) -------------------------------------------------------
+# OpenAI-compatible endpoint for the chat model. Note the /v1. Ollama serves one at :11434/v1.
+export OPENAI_BASE_URL="http://localhost:11434/v1"
+# API key for that endpoint. Ollama accepts any non-empty value.
+export OPENAI_API_KEY="ollama"
+# Optional model override (defaults to llama4:latest).
+# export CHAT_MODEL="llama4:latest"
+# Optional model override for edit planning (defaults to CHAT_MODEL).
+# export EDIT_PLAN_MODEL="llama4:latest"
 
 # ---- Database (defaults suit the local docker compose) ---------------------------------------
 export DATABASE_URL="jdbc:postgresql://localhost:5432/kirinuki"

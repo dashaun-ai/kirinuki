@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.stereotype.Component;
 
@@ -32,11 +33,14 @@ public class SubtitleWriter {
             double start = Math.max(0, caption.getFirst().start() - clipStart);
             double end = Math.min(clipEnd - clipStart, caption.getLast().end() - clipStart);
             String text = caption.stream().map(Word::text).reduce("", String::concat).strip();
+            if (text.isEmpty()) {
+                continue;
+            }
             if (uppercase) {
-                text = text.toUpperCase();
+                text = text.toUpperCase(Locale.ROOT);
             }
             ass.append("Dialogue: 0,%s,%s,Default,,0,0,0,,%s%n".formatted(timestamp(start), timestamp(end),
-                    text.replace("\n", " ")));
+                    escapeAssText(text)));
         }
         try {
             Files.writeString(target, ass.toString());
@@ -52,6 +56,15 @@ public class SubtitleWriter {
             captions.add(words.subList(index, Math.min(index + perCaption, words.size())));
         }
         return captions;
+    }
+
+    private String escapeAssText(String text) {
+        return text
+                .replace("\\", "\\\\")
+                .replace("{", "\\{")
+                .replace("}", "\\}")
+                .replace(",", "\\,")
+                .replace("\n", " ");
     }
 
     private String header() {

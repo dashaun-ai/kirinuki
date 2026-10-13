@@ -36,7 +36,7 @@ public class WhisperClient {
     }
 
     private String expand(String argument, KirinukiPipelineProperties.Asr asr, Path audio, Path target) {
-        Path outputDir = target.getParent();
+        Path outputDir = target.getParent() != null ? target.getParent() : Path.of(".");
         return argument
                 .replace("{audio}", audio.toString())
                 .replace("{model}", asr.model())
@@ -70,7 +70,8 @@ public class WhisperClient {
     }
 
     private void renameToTarget(Path audio, Path target) {
-        Path produced = target.getParent().resolve(baseName(audio) + ".json");
+        Path outputDir = target.getParent() != null ? target.getParent() : Path.of(".");
+        Path produced = outputDir.resolve(baseName(audio) + ".json");
         try {
             Files.move(produced, target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException exception) {
@@ -80,6 +81,7 @@ public class WhisperClient {
 
     private String baseName(Path audio) {
         String audioName = audio.getFileName().toString();
-        return audioName.substring(0, audioName.lastIndexOf('.'));
+        int dot = audioName.lastIndexOf('.');
+        return dot < 0 ? audioName : audioName.substring(0, dot);
     }
 }

@@ -49,7 +49,9 @@ public class CandidateScoreClient {
     public CandidateScoreClient(ChatClient.Builder chatClientBuilder, KirinukiPipelineProperties properties) {
         this.chatClient = chatClientBuilder
                 .defaultSystem(SYSTEM)
-                .defaultOptions(ChatOptions.builder().temperature(properties.scoring().temperature()))
+                .defaultOptions(ChatOptions.builder()
+                        .temperature(properties.scoring().temperature())
+                        .maxTokens(properties.scoring().maxTokens()))
                 .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }

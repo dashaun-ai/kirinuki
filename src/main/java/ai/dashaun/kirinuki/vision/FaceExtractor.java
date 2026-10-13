@@ -14,6 +14,8 @@ import org.bytedeco.opencv.opencv_core.Mat;
 import org.bytedeco.opencv.opencv_core.Scalar;
 import org.bytedeco.opencv.opencv_core.Size;
 import org.bytedeco.opencv.opencv_dnn.Net;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -34,6 +36,7 @@ import static org.bytedeco.opencv.global.opencv_imgproc.cvtColor;
 @Component
 public class FaceExtractor {
 
+    private static final Logger log = LoggerFactory.getLogger(FaceExtractor.class);
     private static final String PROTOTXT_RESOURCE = "vision/face_detector.prototxt";
     private static final String MODEL_RESOURCE = "vision/res10_300x300_ssd_iter_140000.caffemodel";
     private static final int THUMBNAIL_WIDTH = 640;
@@ -95,6 +98,7 @@ public class FaceExtractor {
                 double t = index * interval;
                 Mat image = imread(frames.get(index).toString());
                 if (image.empty()) {
+                    image.release();
                     continue;
                 }
                 cvtColor(image, gray, COLOR_BGR2GRAY);
@@ -102,13 +106,16 @@ public class FaceExtractor {
                         new Scalar(104.0, 177.0, 123.0, 0.0), false, false, CV_32F);
                 net.setInput(blob);
                 Mat output = net.forward();
-                if (output.total() > 0) {
-                    associate(tracks, output, t, gray, previousGray, scale, minFaceWidth, scoreThreshold, maxGap);
+                try {
+                    if (output.total() > 0) {
+                        associate(tracks, output, t, gray, previousGray, scale, minFaceWidth, scoreThreshold, maxGap);
+                    }
+                } finally {
+                    blob.release();
+                    output.release();
+                    image.release();
+                    gray.copyTo(previousGray);
                 }
-                blob.release();
-                output.release();
-                image.release();
-                gray.copyTo(previousGray);
             }
         } finally {
             gray.release();
@@ -187,6 +194,8 @@ public class FaceExtractor {
             Scalar scalar = mean(difference);
             return scalar.get(0);
         } finally {
+            current.release();
+            previous.release();
             difference.release();
         }
     }
@@ -219,10 +228,12 @@ public class FaceExtractor {
             walk.sorted(Comparator.reverseOrder()).forEach(path -> {
                 try {
                     Files.deleteIfExists(path);
-                } catch (IOException ignored) {
+                } catch (IOException exception) {
+                    log.warn("Could not delete temporary file {}", path, exception);
                 }
             });
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            log.warn("Could not clean up temporary directory {}", root, exception);
         }
     }
 

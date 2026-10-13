@@ -12,7 +12,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 import ai.dashaun.kirinuki.content.PlatformVariant;
+import ai.dashaun.kirinuki.edit.DesignedEditService;
+import ai.dashaun.kirinuki.edit.DesignedEditStatus;
 import ai.dashaun.kirinuki.pipeline.PipelineStatus;
 import ai.dashaun.kirinuki.review.ContentField;
 import ai.dashaun.kirinuki.review.EditClipContentRequest;
@@ -27,10 +30,15 @@ public class DashboardController {
 
     private final VideoService videoService;
     private final ReviewService reviewService;
+    private final DesignedEditService designedEditService;
+    private final KirinukiPipelineProperties properties;
 
-    public DashboardController(VideoService videoService, ReviewService reviewService) {
+    public DashboardController(VideoService videoService, ReviewService reviewService,
+            DesignedEditService designedEditService, KirinukiPipelineProperties properties) {
         this.videoService = videoService;
         this.reviewService = reviewService;
+        this.designedEditService = designedEditService;
+        this.properties = properties;
     }
 
     @GetMapping("/")
@@ -49,12 +57,13 @@ public class DashboardController {
     public String dashboard(@PathVariable UUID videoId, Model model) {
         VideoResponse video = videoService.findById(videoId);
         model.addAttribute("video", video);
-        if (video.status().ordinal() < PipelineStatus.READY_FOR_REVIEW.ordinal()) {
+        if (PIPELINE.contains(video.status())) {
             model.addAttribute("steps", pipelineSteps(video.status()));
             return "processing";
         }
         model.addAttribute("clips", reviewService.review(videoId));
         model.addAttribute("fields", ContentField.values());
+        model.addAttribute("editEnabled", properties.edit().enabled());
         return "dashboard";
     }
 
@@ -71,27 +80,36 @@ public class DashboardController {
     }
 
     @PostMapping("/videos/{videoId}/dashboard/clips/{clipIndex}/approve")
-    public String approveClip(@PathVariable UUID videoId, @PathVariable int clipIndex) {
-        reviewService.decide(videoId, clipIndex, ReviewStatus.APPROVED);
+    public String approveClip(@PathVariable UUID videoId, @PathVariable int clipIndex,
+            @RequestParam(required = false) Long version) {
+        reviewService.decide(videoId, clipIndex, ReviewStatus.APPROVED, version);
         return redirect(videoId);
     }
 
     @PostMapping("/videos/{videoId}/dashboard/clips/{clipIndex}/reject")
-    public String rejectClip(@PathVariable UUID videoId, @PathVariable int clipIndex) {
-        reviewService.decide(videoId, clipIndex, ReviewStatus.REJECTED);
+    public String rejectClip(@PathVariable UUID videoId, @PathVariable int clipIndex,
+            @RequestParam(required = false) Long version) {
+        reviewService.decide(videoId, clipIndex, ReviewStatus.REJECTED, version);
         return redirect(videoId);
     }
 
     @PostMapping("/videos/{videoId}/dashboard/clips/{clipIndex}/regenerate")
     public String regenerate(@PathVariable UUID videoId, @PathVariable int clipIndex,
-            @RequestParam ContentField field, @RequestParam(required = false) String platform) {
-        reviewService.regenerate(videoId, clipIndex, new RegenerateFieldRequest(field, platform));
+            @RequestParam ContentField field, @RequestParam(required = false) String platform,
+            @RequestParam(required = false) Long version) {
+        reviewService.regenerate(videoId, clipIndex, new RegenerateFieldRequest(field, platform), version);
         return redirect(videoId);
     }
 
     @PostMapping("/videos/{videoId}/dashboard/approve")
     public String approveVideo(@PathVariable UUID videoId) {
         reviewService.approve(videoId);
+        return redirect(videoId);
+    }
+
+    @PostMapping("/videos/{videoId}/dashboard/clips/{clipIndex}/designed")
+    public String renderDesigned(@PathVariable UUID videoId, @PathVariable int clipIndex) {
+        designedEditService.render(videoId, clipIndex);
         return redirect(videoId);
     }
 
@@ -102,7 +120,7 @@ public class DashboardController {
     private static final List<PipelineStatus> PIPELINE = List.of(
             PipelineStatus.DOWNLOADING, PipelineStatus.MEDIA_PREPARATION, PipelineStatus.FEATURE_EXTRACTION,
             PipelineStatus.CANDIDATE_GENERATION, PipelineStatus.AI_ANALYSIS, PipelineStatus.CLIP_RENDERING,
-            PipelineStatus.CONTENT_GENERATION, PipelineStatus.READY_FOR_REVIEW);
+            PipelineStatus.CONTENT_GENERATION, PipelineStatus.EDIT_PLANNING);
 
     private List<PipelineStep> pipelineSteps(PipelineStatus current) {
         List<PipelineStep> steps = new ArrayList<>();
@@ -123,13 +141,15 @@ public class DashboardController {
             case AI_ANALYSIS -> "Scoring candidates";
             case CLIP_RENDERING -> "Rendering clips";
             case CONTENT_GENERATION -> "Content generation";
+            case EDIT_PLANNING -> "Edit planning";
             case READY_FOR_REVIEW -> "Ready for review";
             default -> status.name();
         };
     }
 
     private EditClipContentRequest toRequest(ClipEditForm form) {
-        List<PlatformVariant> platforms = form.getPlatforms().stream()
+        List<PlatformEditForm> platformForms = form.getPlatforms() == null ? List.of() : form.getPlatforms();
+        List<PlatformVariant> platforms = platformForms.stream()
                 .map(platform -> new PlatformVariant(platform.getPlatform(), platform.getTitle(),
                         platform.getCaption(), splitCsv(platform.getHashtags()), platform.getCallToAction()))
                 .toList();

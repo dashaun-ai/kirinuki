@@ -1,0 +1,28 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        model: ${CHAT_MODEL:llama4:latest}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  tracing:
+    sampling:
+      probability: 0.1
+
+kirinuki:
+  storage:
+    root: ${KIRINUKI_STORAGE_ROOT:/data}

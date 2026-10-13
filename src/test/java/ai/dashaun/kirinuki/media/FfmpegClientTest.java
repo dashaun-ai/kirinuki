@@ -21,6 +21,7 @@ import org.springframework.boot.context.properties.source.MapConfigurationProper
 
 import ai.dashaun.kirinuki.common.ProcessRunner;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import tools.jackson.databind.ObjectMapper;
 
 class FfmpegClientTest {
 
@@ -37,6 +38,8 @@ class FfmpegClientTest {
 
         assertThat(command()).containsExactly("ffmpeg",
                 "-y",
+                "-hide_banner",
+                "-nostats",
                 "-i", SOURCE.toString(),
                 "-vn",
                 "-ac", "1",
@@ -225,9 +228,16 @@ class FfmpegClientTest {
 
     @Test
     void should_round_the_zoomed_width_to_an_even_number_of_pixels() {
-        client(Map.of("kirinuki.pipeline.render.zoom", 0.37)).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET);
+        client(Map.of("kirinuki.pipeline.render.zoom", 1.37)).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET);
 
-        assertThat(filter()).contains("[fg]scale=400:-2,");
+        assertThat(filter()).contains("[fg]scale=1480:-2,");
+    }
+
+    @Test
+    void should_never_shrink_the_foreground_below_the_output_width() {
+        client(Map.of("kirinuki.pipeline.render.zoom", 0.5)).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET);
+
+        assertThat(filter()).contains("[fg]scale=1080:-2,crop=1080:ih:(iw-1080)/2:0[f]");
     }
 
     @Test
@@ -291,9 +301,98 @@ class FfmpegClientTest {
                 .endsWith(TARGET.toString());
     }
 
+    @Test
+    void should_normalize_audio_to_social_platform_loudness() {
+        client(Map.of()).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET);
+
+        assertThat(argumentAfter("-af")).isEqualTo("loudnorm=I=-14:TP=-1.5:LRA=11");
+    }
+
+    @Test
+    void should_cap_output_frame_rate_to_configured_max() {
+        client(Map.of("kirinuki.pipeline.render.max-fps", 30)).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET);
+
+        assertThat(argumentAfter("-r")).isEqualTo("30.0");
+    }
+
+    @Test
+    void should_use_source_frame_rate_when_lower_than_max() {
+        MediaProfile profile = new MediaProfile(1920, 1080, 24.0, 120.0, true);
+        client(Map.of("kirinuki.pipeline.render.max-fps", 30)).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET,
+                null, profile);
+
+        assertThat(argumentAfter("-r")).isEqualTo("24.0");
+    }
+
+    @Test
+    void should_preserve_fractional_source_frame_rates() {
+        MediaProfile profile = new MediaProfile(1920, 1080, 29.97, 120.0, true);
+        client(Map.of("kirinuki.pipeline.render.max-fps", 60)).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET,
+                null, profile);
+
+        assertThat(argumentAfter("-r")).isEqualTo("29.97");
+    }
+
+    @Test
+    void should_skip_blur_fill_when_source_is_already_vertical_and_no_plan_is_given() {
+        MediaProfile profile = new MediaProfile(1080, 1920, 30.0, 120.0, true);
+        client(Map.of()).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET, null, profile);
+
+        assertThat(filter()).contains("[0:v]scale=1080:1920:force_original_aspect_ratio=decrease");
+        assertThat(filter()).doesNotContain("boxblur=8:2");
+    }
+
+    @Test
+    void should_apply_a_plan_even_when_source_is_already_vertical() {
+        MediaProfile profile = new MediaProfile(1080, 1920, 30.0, 120.0, true);
+        FramingPlan plan = FramingPlan.single(600, 750, new SpeakerSegment(0.0, 30.0, 0, 213));
+        client(Map.of()).renderVertical(SOURCE, 0.0, 30.0, SUBTITLES, TARGET, plan, profile);
+
+        assertThat(filter()).contains("[fg]crop=600:750:0:213,scale=1080:-2[f]");
+    }
+
+    @Test
+    void should_escape_special_characters_in_subtitle_path() {
+        Path trickySubtitles = Path.of("/storage/video/clips:clip'1.ass");
+        client(Map.of()).renderVertical(SOURCE, 0.0, 30.0, trickySubtitles, TARGET);
+
+        assertThat(filter()).endsWith("subtitles=/storage/video/clips\\:clip\\'1.ass");
+    }
+
+    @Test
+    void should_escape_filter_special_characters_in_subtitle_path() {
+        Path trickySubtitles = Path.of("/storage/video/clips,clip[1];clip 2.ass");
+        client(Map.of()).renderVertical(SOURCE, 0.0, 30.0, trickySubtitles, TARGET);
+
+        assertThat(filter()).endsWith(
+                "subtitles=/storage/video/clips\\,clip\\[1\\]\\;clip\\ 2.ass");
+    }
+
+    @Test
+    void should_probe_media_profile_from_ffprobe_output() {
+        stubOutput("""
+                {
+                  "streams": [
+                    {"codec_type": "video", "width": 1920, "height": 1080, "r_frame_rate": "30/1", "duration": "120.5"},
+                    {"codec_type": "audio", "codec_name": "aac"}
+                  ],
+                  "format": {"duration": "120.0"}
+                }
+                """);
+
+        MediaProfile profile = client(Map.of()).probeMediaProfile(SOURCE);
+
+        assertThat(profile.width()).isEqualTo(1920);
+        assertThat(profile.height()).isEqualTo(1080);
+        assertThat(profile.fps()).isEqualTo(30.0);
+        assertThat(profile.durationSeconds()).isEqualTo(120.5);
+        assertThat(profile.hasAudio()).isTrue();
+    }
+
     private FfmpegClient client(Map<String, Object> configuration) {
         return new FfmpegClient(new Binder(new MapConfigurationPropertySource(configuration))
-                .bindOrCreate("kirinuki.pipeline", KirinukiPipelineProperties.class), processRunner);
+                .bindOrCreate("kirinuki.pipeline", KirinukiPipelineProperties.class), processRunner,
+                new ObjectMapper());
     }
 
     private void stubOutput(String output) {
