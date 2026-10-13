@@ -33,3 +33,5 @@ build/
 # Anchored: the runtime blackboard at the repo root, not the storage package
 /storage/
 .envrc
+*.log
+*.pid

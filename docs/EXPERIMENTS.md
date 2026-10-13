@@ -24,7 +24,7 @@ new dependency, or a rebuild of ffmpeg.
 
 ## Correction: the source is 1080p, not 720p
 
-`CLAUDE.md` says "the source is a 720p screen-share, so a 9:16 crop gives 405×720 upscaled to
+`AGENTS.md` says "the source is a 720p screen-share, so a 9:16 crop gives 405×720 upscaled to
 1080×1920." That is stale. All three sources on disk are **1920×1080**:
 
 | Run | Source | fps | Duration |
@@ -36,7 +36,7 @@ new dependency, or a rebuild of ffmpeg.
 A 9:16 centre crop of 1080p is 607×1080 → 1.78x upscale to fill the frame, not the 2.67x the docs
 imply. The argument against centre-cropping still holds — it slices code in half, which is a content
 problem, not a resolution one — but the resolution headroom is better than recorded. Worth fixing in
-`CLAUDE.md` either way.
+`AGENTS.md` either way.
 
 ### The frame budget we actually have
 

@@ -100,8 +100,8 @@ call; and `num-thread` belongs at 6 of 12 so the IDE and Docker stay usable. Sco
 in git — it is untracked, because ctranslate2 ships no musl wheels so an Alpine runtime cannot host the
 ASR binary. **No security at all yet** (M5): every endpoint and the whole dashboard are open.
 
-`docs/*.md` and `CLAUDE.md` are deliberately untracked. They are **not** gitignored, so never
-`git add -A` — use `git add -u` plus explicit paths.
+`docs/*.md` and this file are tracked. Runtime junk at the repo root (`*.log`, `*.pid`) is
+gitignored; still prefer `git add -u` plus explicit paths over `git add -A`.
 
 ## Next feature
 

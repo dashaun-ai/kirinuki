@@ -16,8 +16,8 @@ the fix list, ordered so the sequencing stays your call.
 > | B1 — the `sekisho.client.*` block is inert | `676e095` — block and dependency removed |
 > | C4 — a REST advice serves the HTML dashboard | `87b5e59` — separate `DashboardExceptionHandler` |
 > | D8 — `SubtitleWriter` emits malformed timestamps | `676e095` |
-> | E3 — CLAUDE.md still describes Ollama | rewritten 2026-08-26 |
-> | E4 — CLAUDE.md's inventory is stale | rewritten 2026-08-26 |
+> | E3 — AGENTS.md still describes Ollama | rewritten 2026-08-26 |
+> | E4 — AGENTS.md's inventory is stale | rewritten 2026-08-26 |
 >
 > **A6 is only half closed.** `676e095` fixed the seeding race (concurrent first loads no longer collide
 > on the `unique (video_id, clip_index)` index), but `edit` / `decide` / `regenerate` are still
@@ -192,7 +192,7 @@ with no indication of which property is at fault. `@DefaultValue("./storage")` c
 
 `VideoService` is the only class using Lombok's `@Slf4j` (VideoService.java:24); every other class
 declares the logger by hand. Your global rules put Lombok on entities and complex POJOs only, never on
-services. And line 61 logs at INFO on every `findById` — this is exactly the console flood CLAUDE.md
+services. And line 61 logs at INFO on every `findById` — this is exactly the console flood AGENTS.md
 warns me about, coming from your own code, hit once per dashboard load.
 
 **Fix:** delete the log line and the annotation.
@@ -230,7 +230,7 @@ still return 400. Worth stating explicitly so it doesn't get "fixed".
 
 `ClipEditForm` / `PlatformEditForm` use `@Getter/@Setter` against the "records for DTOs" rule, but
 indexed binding of `platforms[i].title` needs mutable beans — records cannot do it. This is a correct
-deviation; it should be written down in CLAUDE.md so the next review doesn't flag it.
+deviation; it should be written down in AGENTS.md so the next review doesn't flag it.
 
 ---
 
@@ -313,7 +313,7 @@ Line 33: "Access to a Sekisho-compatible OpenAI gateway."
 Transcripts are being sent to a remote gateway. For a client-facing repo this is the sentence that
 matters most, and it is wrong.
 
-### E2 — CLAUDE.md claims observability that was removed
+### E2 — AGENTS.md claims observability that was removed
 
 It states stages and tools are wrapped in Micrometer `Observation`s and that a video is one trace.
 There is no `Observation` or `micrometer` reference in `src/main/java`; commit `7883861`
@@ -321,21 +321,21 @@ There is no `Observation` or `micrometer` reference in `src/main/java`; commit `
 still exports JVM and HTTP metrics, so the dashboards look alive while the per-stage timings — the
 numbers this project is actually tuned on — are gone.
 
-### E3 — CLAUDE.md still describes Ollama
+### E3 — AGENTS.md still describes Ollama
 
 `num-thread`, `num-predict`, ADR-0001 "inference is fully local". The pom ships
 `spring-ai-starter-model-openai` and there is no Ollama config anywhere. The `num-predict` guidance
 survives in spirit as `spring.ai.openai.chat.max-tokens: 512`, which is worth saying explicitly since
 you paid hours for that lesson.
 
-### E4 — CLAUDE.md's inventory is stale
+### E4 — AGENTS.md's inventory is stale
 
 "49 files, ~2k lines", six stages, "M1 is complete". Actual: 80 Java files, ~3.3k lines, nine stages,
 plus review, dashboard and content generation.
 
 ### E5 — The Dockerfile cannot run the pipeline
 
-It installs ffmpeg and yt-dlp but not `whisper-ctranslate2` — the musl/ctranslate2 problem CLAUDE.md
+It installs ffmpeg and yt-dlp but not `whisper-ctranslate2` — the musl/ctranslate2 problem AGENTS.md
 documents. A container built from it reaches TranscriptionStage and dies with
 `ToolNotAvailableException`. Either delete it, or move to a glibc base (`eclipse-temurin:25-jre-noble`)
 and `pipx install whisper-ctranslate2`. Also: `./storage` inside the container is not a volume, so
@@ -359,7 +359,7 @@ as such in the README so it isn't mistaken for coverage.
 
 ## Verification
 
-No tests in this project, so: `./mvnw clean compile` (clean, per CLAUDE.md — incremental reports
+No tests in this project, so: `./mvnw clean compile` (clean, per AGENTS.md — incremental reports
 success against stale classes), then a full run of one short video, checking `storage/{id}/` for the
 nine artifacts and the DB row's `status` / `last_error` directly rather than polling
 `GET /videos/{id}`. For A1 specifically, re-run video `ed94f058` (34 candidates, currently 0 scored)

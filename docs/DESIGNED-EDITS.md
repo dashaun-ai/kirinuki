@@ -369,7 +369,7 @@ for the box. The model stays config, never Java — the rule scoring already fol
 | Planning | reliable structured JSON, decent taste | the existing chat model (`llama4`) — try first | already in use |
 | Vision QA | image input, short structured output | a multimodal build of the chat model, or a small VLM | to confirm on the box |
 
-Two numbers from `CLAUDE.md` still apply if the endpoint is a local Ollama: **bound
+Two numbers from `AGENTS.md` still apply if the endpoint is a local Ollama: **bound
 `plan-max-tokens`** (a runaway plan costs minutes) and keep threads at half the cores on the laptop.
 Planning is one call per clip; eight clips at ~20s each is ~3 minutes on the GPU box, far below scoring.
 
@@ -519,7 +519,7 @@ way the app surfaces `ToolNotAvailableException`.
 |---|---|---|
 | Local model plans are dull or repetitive | the feature is pointless | Phase 0 go/no-go; theme `prefer` lists; few-shot examples from real Spring clips in the prompt |
 | Structured output drifts on a wide schema | invalid plans | flat `Shot`, validator repair, source-only fallback |
-| Render time on CPU | laptop runs take many minutes per clip | on-demand per clip, `max-concurrent-renders: 1`, judge on the GPU box as `CLAUDE.md` already says |
+| Render time on CPU | laptop runs take many minutes per clip | on-demand per clip, `max-concurrent-renders: 1`, judge on the GPU box as `AGENTS.md` already says |
 | Code on `SOURCE` shots still small | legibility | punch-in `zoom` per shot now; FR-RENDER-6 ROI crop later benefits both variants |
 | Trademark use of Spring and partner logos | client/legal exposure | curated bundled library only, reviewed once; no logo fetched at runtime |
 | Image licences | takedowns | allowlist + stored licence + credits panel; creator approves before publish |
