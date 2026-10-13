@@ -4,57 +4,130 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title th:text="'Processing — ' + ${video.title}">Processing</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Shippori+Mincho:wght@500&display=swap" rel="stylesheet"/>
     <link rel="stylesheet" th:href="@{/css/app.css}"/>
 </head>
 <body>
 <header class="topbar">
-    <div class="wrap topbar-inner">
-        <div class="topbar-left">
-            <a class="brand" th:href="@{/}"><span class="kanji">切り抜き</span><b>Kirinuki</b></a>
-            <a class="back" th:href="@{/}">&larr; Videos</a>
-        </div>
+    <div class="topbar-inner">
+        <a class="brand" th:href="@{/}">
+            <span class="kanji">切り抜き</span>
+            <span class="wordmark">KIRINUKI</span>
+        </a>
     </div>
 </header>
 
-<main class="wrap">
-    <div class="proc-top">
+<main class="page">
+    <p class="crumb"><a th:href="@{/}">Library</a><span class="sep">/</span><span th:text="${video.title}">title</span></p>
+
+    <div class="proc-head">
         <div>
             <h1 th:text="${video.title}">Video title</h1>
-            <p class="sub" style="margin:4px 0 0">
-                Processing
-                <span th:if="${video.lastError == null}" class="spin"></span>
-            </p>
+            <div class="proc-meta">
+                <span class="pill" th:classappend="${video.lastError != null} ? 'pill--red' : 'pill--blue'"
+                      th:text="${video.lastError != null} ? 'STALLED' : 'PROCESSING'">PROCESSING</span>
+                <span th:text="${video.uploader}">channel</span>
+                <span th:text="${video.durationSeconds / 60} + ':' + ${#numbers.formatInteger(video.durationSeconds % 60, 2)}">0:00</span>
+            </div>
         </div>
-        <div class="proc-right">
-            <span class="pill" th:classappend="${'pill--' + video.status}" th:text="${video.status}">STATUS</span>
-            <a class="btn btn-ghost sm" th:href="@{/videos/{v}/dashboard(v=${video.id})}">Refresh</a>
+        <div class="live-note">
+            <div class="live" th:if="${video.lastError == null}"><span class="live-dot"></span>Live — checking for updates</div>
+            <div>total elapsed <span class="mono" id="elapsed" th:attr="data-ts=${video.ingestedAt}">0:00</span></div>
         </div>
     </div>
 
-    <div class="callout err" th:if="${video.lastError != null}">
-        <span th:text="'Stalled: ' + ${video.lastError}">error</span>
-        <form method="post" th:action="@{/videos/{v}/dashboard/retry(v=${video.id})}">
-            <button class="btn btn-bad sm" type="submit">Retry</button>
-        </form>
+    <div class="proc-bar">
+        <div class="progress"><span id="procFill" th:style="'width:' + ${(video.status.ordinal() + 1) * 100 / 8} + '%'"></span></div>
     </div>
+    <p class="proc-caption" th:text="${video.status.ordinal()} + ' of 8 stages complete' + (video.lastError != null ? ' — stalled' : '')">0 of 8 stages complete</p>
 
-    <div class="card steps">
-        <div class="step" th:each="step, i : ${steps}" th:classappend="${'s-' + step.state}">
-            <div class="dot" th:classappend="${step.state}"
-                 th:text="${step.state == 'done' ? '✓' : (step.state == 'active' ? '●' : i.index + 1)}">1</div>
-            <div class="name" th:text="${step.label}">Stage</div>
-            <div class="note">
-                <span th:if="${step.state == 'done'}">done</span>
-                <span th:if="${step.state == 'active' and video.lastError == null}" class="spin"></span>
-                <span th:if="${step.state == 'todo'}">queued</span>
+    <div class="proc-grid">
+        <div class="card">
+            <ul class="steps">
+                <li class="step" th:each="step, i : ${steps}"
+                    th:classappend="${(step.state == 'active' and video.lastError != null) ? 'stalled' : step.state}"
+                    th:attr="data-label=${step.label}">
+                    <div class="step-dot"
+                         th:text="${step.state == 'done' ? '✓' : (step.state == 'active' and video.lastError != null) ? '✕' : i.index + 1}">1</div>
+                    <div>
+                        <div class="step-name" th:text="${step.label}">Stage</div>
+                        <div class="step-desc" th:attr="data-desc-for=${step.label}"></div>
+                    </div>
+                    <div class="step-state">
+                        <span th:if="${step.state == 'done'}">done</span>
+                        <span th:if="${step.state == 'active' and video.lastError == null}" class="spin"></span>
+                        <span th:if="${step.state == 'active' and video.lastError != null}">failed</span>
+                        <span th:if="${step.state == 'todo'}">—</span>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <div>
+            <div class="callout callout-stalled" th:if="${video.lastError != null}">
+                <h3 th:text="'Pipeline stalled — ' + ${steps[video.status.ordinal()].label}">Pipeline stalled</h3>
+                <p>The stage failed. Completed stages and their artifacts are kept — retrying resumes where it stopped.</p>
+                <div class="error-box" th:text="${video.lastError}">error</div>
+                <div class="callout-actions">
+                    <form method="post" th:action="@{/videos/{v}/dashboard/retry(v=${video.id})}">
+                        <button class="btn btn-bad-solid" type="submit">⟳ Retry stage</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="callout callout-info">
+                <span class="shield">&#x1F6E1;</span>
+                <span><b>Resume is idempotent.</b> Completed stages and their artifacts are kept — retrying continues from the current stage. Nothing is lost. The pipeline pauses at <b>Ready for review</b>; nothing publishes until you approve clips.</span>
             </div>
         </div>
     </div>
-
-    <div class="callout">
-        <b>&rarr;</b>
-        <span>The pipeline pauses at <b>Ready for review</b>. Nothing publishes until you approve the clips you want.</span>
-    </div>
 </main>
+
+<script th:inline="javascript">
+(() => {
+    const VIDEO_ID = [[${video.id}]];
+    const INITIAL_STATUS = [[${video.status.name()}]];
+    const INITIAL_ERROR = [[${video.lastError != null}]];
+
+    const DESCS = {
+        "Download": "source video via yt-dlp",
+        "Media preparation": "proxy render + audio track extracted",
+        "Feature extraction": "transcription ∥ scenes ∥ audio — in parallel",
+        "Candidate generation": "windows of interest from transcript + scene boundaries",
+        "Scoring candidates": "local LLM scores hook / value / emotion / virality",
+        "Rendering clips": "1080×1920, burned subtitles, blurred fill, loudnorm",
+        "Content generation": "summary, keywords, per-platform titles and captions",
+        "Edit planning": "optional designed edit — LLM-planned shot list"
+    };
+    document.querySelectorAll("[data-desc-for]").forEach(el => {
+        el.textContent = DESCS[el.dataset.descFor] || "";
+    });
+
+    const elapsedEl = document.getElementById("elapsed");
+    const fmt = ms => {
+        const s = Math.max(0, Math.floor(ms / 1000));
+        return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+    };
+    const tick = () => elapsedEl.textContent = fmt(Date.now() - new Date(elapsedEl.dataset.ts).getTime());
+    tick();
+    setInterval(tick, 1000);
+
+    if (INITIAL_STATUS !== "READY_FOR_REVIEW") {
+        setInterval(async () => {
+            try {
+                const res = await fetch("/videos/" + VIDEO_ID);
+                if (!res.ok) return;
+                const video = await res.json();
+                if (video.status !== INITIAL_STATUS || (video.lastError != null) !== INITIAL_ERROR) {
+                    location.reload();
+                }
+            } catch (ignored) {
+            }
+        }, 4000);
+    }
+})();
+</script>
 </body>
 </html>

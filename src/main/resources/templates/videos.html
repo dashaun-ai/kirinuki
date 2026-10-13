@@ -3,57 +3,175 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Kirinuki — clip pipeline</title>
+    <title>Kirinuki — Library</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Shippori+Mincho:wght@500&display=swap" rel="stylesheet"/>
     <link rel="stylesheet" th:href="@{/css/app.css}"/>
 </head>
 <body>
 <header class="topbar">
-    <div class="wrap topbar-inner">
+    <div class="topbar-inner">
         <a class="brand" th:href="@{/}">
             <span class="kanji">切り抜き</span>
-            <b>Kirinuki</b>
-            <span class="tag">clip pipeline</span>
+            <span class="wordmark">KIRINUKI</span>
         </a>
-    </div>
-</header>
-
-<main class="wrap">
-    <p class="eyebrow">New clip job</p>
-    <h1 class="page">Turn a long video into short clips</h1>
-    <p class="sub">Paste a YouTube URL. Kirinuki downloads it, transcribes it, finds the strongest moments, and cuts vertical clips for review.</p>
-
-    <div class="card ingest">
-        <form method="post" th:action="@{/ingest}">
-            <input class="url" type="url" name="url" required
-                   placeholder="https://www.youtube.com/watch?v=…" aria-label="YouTube URL"/>
-            <button class="btn btn-primary" type="submit">Process video</button>
-        </form>
-        <p class="hint">Runs fully local &mdash; <b>yt-dlp</b>, <b>whisper</b>, <b>ffmpeg</b>, and a local model.</p>
-    </div>
-
-    <p class="eyebrow" style="margin-top:34px">Videos</p>
-
-    <div class="card rows" th:unless="${videos.isEmpty()}">
-        <div class="row row-head"><span>Title</span><span>Status</span><span></span></div>
-        <div class="row" th:each="video : ${videos}">
-            <div>
-                <div class="title" th:text="${video.title}">Title</div>
-                <div class="meta">
-                    <span th:text="${video.durationSeconds / 60} + ':' + ${#numbers.formatInteger(video.durationSeconds % 60, 2)}">0:00</span>
-                </div>
-            </div>
-            <span class="pill" th:classappend="${'pill--' + video.status}" th:text="${video.status}">STATUS</span>
-            <span>
-                <a class="btn btn-primary sm" th:if="${video.status.name() == 'READY_FOR_REVIEW'}"
-                   th:href="@{/videos/{id}/dashboard(id=${video.id})}">Review</a>
-                <a class="btn btn-ghost sm"
-                   th:if="${video.status.name() == 'READY_TO_PUBLISH' or video.status.name() == 'PUBLISHED'}"
-                   th:href="@{/videos/{id}/dashboard(id=${video.id})}">Open</a>
+        <div class="topbar-right">
+            <span class="need-review" id="needReview" hidden>
+                <span class="dot"></span><span id="needReviewCount"></span>
             </span>
         </div>
     </div>
+</header>
 
-    <p class="empty" th:if="${videos.isEmpty()}">No videos yet. Paste a URL above to start.</p>
+<main class="page" th:if="${videos.isEmpty()}">
+    <div class="empty-hero">
+        <span class="kanji-big">切り抜き</span>
+        <h1>No videos yet</h1>
+        <p>Paste your first YouTube URL. Kirinuki downloads, transcribes and drafts vertical clips — entirely on your machine.</p>
+        <form method="post" th:action="@{/ingest}">
+            <input type="url" name="url" required placeholder="https://youtube.com/watch?v=…" aria-label="YouTube URL"/>
+            <button class="btn btn-primary" type="submit">Clip it</button>
+        </form>
+        <p class="hint">Ingest becomes a slim bar at the top once your library has videos.</p>
+    </div>
 </main>
+
+<main class="page" th:unless="${videos.isEmpty()}">
+    <form class="ingest-bar" method="post" th:action="@{/ingest}">
+        <input type="url" name="url" required placeholder="Paste a YouTube URL to turn it into clips…" aria-label="YouTube URL"/>
+        <button class="btn btn-primary btn-lg" type="submit">Clip it</button>
+    </form>
+
+    <div class="library-head">
+        <h1>Library</h1>
+        <span class="count" th:text="${videos.size()} + ' videos'">0 videos</span>
+    </div>
+
+    <div class="filter-row" id="filters">
+        <button class="filter-pill active" data-filter="all">All</button>
+        <button class="filter-pill f-accent" data-filter="needs-review">Needs review<span class="n" data-count="needs-review"></span></button>
+        <button class="filter-pill f-blue" data-filter="processing">Processing<span class="n" data-count="processing"></span></button>
+        <button class="filter-pill" data-filter="published">Published<span class="n" data-count="published"></span></button>
+        <button class="filter-pill f-red" data-filter="stalled">Stalled<span class="n" data-count="stalled"></span></button>
+        <div class="sort-wrap">
+            <label for="sort">Sort:</label>
+            <select id="sort">
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="vtable-head"><span>VIDEO</span><span>STATUS</span><span>ACTION</span></div>
+
+    <div id="rows">
+        <article class="vrow" th:each="video : ${videos}"
+                 th:attr="data-status=${video.status.name()},data-stalled=${video.lastError != null},data-ingested=${video.ingestedAt}">
+            <div class="vrow-main">
+                <div class="vthumb">切</div>
+                <div>
+                    <div class="vtitle" th:text="${video.title}">Title</div>
+                    <div class="vmeta">
+                        <span th:text="${video.uploader}">channel</span><span class="sep">·</span>
+                        <span th:text="${video.durationSeconds / 60} + ':' + ${#numbers.formatInteger(video.durationSeconds % 60, 2)}">0:00</span><span class="sep">·</span>
+                        ingested <span class="rel" th:attr="data-ts=${video.ingestedAt}">—</span>
+                    </div>
+                    <div class="vsub" th:if="${video.lastError != null}">
+                        <span class="err-text" th:text="${video.lastError}">error</span>
+                    </div>
+                    <div class="vsub progress-line" th:if="${video.lastError == null and video.status.name() != 'READY_FOR_REVIEW' and video.status.name() != 'READY_TO_PUBLISH' and video.status.name() != 'PUBLISHED'}">
+                        <div class="progress"><span th:style="'width:' + ${(video.status.ordinal() + 1) * 100 / 8} + '%'"></span></div>
+                        <span class="progress-note" th:text="'stage ' + ${video.status.ordinal() + 1} + '/8'">stage 1/8</span>
+                    </div>
+                    <div class="vsub" th:if="${video.status.name() == 'READY_FOR_REVIEW'}">clips waiting for review</div>
+                    <div class="vsub" th:if="${video.status.name() == 'READY_TO_PUBLISH'}">clips approved — ready to publish</div>
+                </div>
+            </div>
+            <span class="pill" th:text="${#strings.replace(video.status.name(), '_', ' ')}">STATUS</span>
+            <div class="vrow-actions">
+                <a class="btn btn-primary" th:if="${video.status.name() == 'READY_FOR_REVIEW'}"
+                   th:href="@{/videos/{id}/dashboard(id=${video.id})}">Review →</a>
+                <form th:if="${video.lastError != null}" method="post"
+                      th:action="@{/videos/{id}/dashboard/retry(id=${video.id})}">
+                    <button class="btn btn-bad" type="submit">⟳ Retry</button>
+                </form>
+                <a class="btn btn-ghost" th:if="${video.status.name() == 'READY_TO_PUBLISH' or video.status.name() == 'PUBLISHED'}"
+                   th:href="@{/videos/{id}/dashboard(id=${video.id})}">Open</a>
+                <a class="btn btn-ghost" th:if="${video.lastError == null and video.status.name() != 'READY_FOR_REVIEW' and video.status.name() != 'READY_TO_PUBLISH' and video.status.name() != 'PUBLISHED'}"
+                   th:href="@{/videos/{id}/dashboard(id=${video.id})}">Watch progress</a>
+            </div>
+        </article>
+    </div>
+</main>
+
+<script>
+(() => {
+    const LABELS = {
+        DOWNLOADING: "Downloading", MEDIA_PREPARATION: "Media prep", FEATURE_EXTRACTION: "Feature extraction",
+        CANDIDATE_GENERATION: "Candidates", AI_ANALYSIS: "AI analysis", CLIP_RENDERING: "Rendering",
+        CONTENT_GENERATION: "Content", EDIT_PLANNING: "Edit plan", READY_FOR_REVIEW: "Ready for review",
+        READY_TO_PUBLISH: "Ready to publish", PUBLISHED: "Published", STALLED: "Stalled"
+    };
+    const rows = [...document.querySelectorAll(".vrow")];
+
+    const category = row => {
+        if (row.dataset.stalled === "true") return "stalled";
+        const s = row.dataset.status;
+        if (s === "READY_FOR_REVIEW") return "needs-review";
+        if (s === "READY_TO_PUBLISH" || s === "PUBLISHED") return "published";
+        return "processing";
+    };
+
+    rows.forEach(row => {
+        const pill = row.querySelector(".pill");
+        const cat = category(row);
+        pill.textContent = cat === "stalled" ? LABELS.STALLED : LABELS[row.dataset.status];
+        pill.classList.add(cat === "stalled" ? "pill--red"
+            : cat === "needs-review" ? "pill--accent"
+            : row.dataset.status === "READY_TO_PUBLISH" ? "pill--green"
+            : cat === "published" ? "" : "pill--blue");
+    });
+
+    const rel = ts => {
+        const s = Math.max(0, (Date.now() - new Date(ts).getTime()) / 1000);
+        if (s < 90) return "just now";
+        if (s < 3600) return Math.round(s / 60) + "m ago";
+        if (s < 86400) return Math.round(s / 3600) + "h ago";
+        return Math.round(s / 86400) + "d ago";
+    };
+    const tick = () => document.querySelectorAll(".rel[data-ts]").forEach(el => el.textContent = rel(el.dataset.ts));
+    tick();
+    setInterval(tick, 30000);
+
+    const counts = { "needs-review": 0, processing: 0, published: 0, stalled: 0 };
+    rows.forEach(row => counts[category(row)]++);
+    document.querySelectorAll("[data-count]").forEach(el => {
+        const n = counts[el.dataset.count];
+        el.textContent = n > 0 ? " · " + n : "";
+    });
+    if (counts["needs-review"] > 0) {
+        document.getElementById("needReview").hidden = false;
+        document.getElementById("needReviewCount").textContent = counts["needs-review"] + " need review";
+    }
+
+    const applyFilter = name => {
+        rows.forEach(row => row.style.display = (name === "all" || category(row) === name) ? "" : "none");
+    };
+    document.querySelectorAll(".filter-pill").forEach(btn => btn.addEventListener("click", () => {
+        document.querySelectorAll(".filter-pill").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        applyFilter(btn.dataset.filter);
+    }));
+
+    const sortSelect = document.getElementById("sort");
+    if (sortSelect) sortSelect.addEventListener("change", () => {
+        const dir = sortSelect.value === "newest" ? -1 : 1;
+        rows.sort((a, b) => dir * (new Date(a.dataset.ingested) - new Date(b.dataset.ingested)))
+            .forEach(row => row.parentNode.appendChild(row));
+    });
+    sortSelect && sortSelect.dispatchEvent(new Event("change"));
+})();
+</script>
 </body>
 </html>

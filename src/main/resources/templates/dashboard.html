@@ -4,155 +4,481 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title th:text="'Review — ' + ${video.title}">Review</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Shippori+Mincho:wght@500&display=swap" rel="stylesheet"/>
     <link rel="stylesheet" th:href="@{/css/app.css}"/>
 </head>
 <body>
-<header class="topbar">
-    <div class="wrap topbar-inner">
-        <div class="topbar-left">
-            <a class="brand" th:href="@{/}"><span class="kanji">切り抜き</span><b>Kirinuki</b></a>
-            <a class="back" th:href="@{/}">&larr; Videos</a>
-        </div>
+<header class="rev-top">
+    <a class="crumb" th:href="@{/}">← Library</a>
+    <span class="crumb">/</span>
+    <span class="crumb crumb-title" th:text="${video.title}">title</span>
+    <span class="crumb">/</span>
+    <span class="crumb"><b>Review</b></span>
+    <div class="rev-progress">
+        <div class="dots" id="dots"></div>
+        <span class="approved-count" id="approvedCount">—</span>
+        <button class="btn btn-good" id="approveVideoBtn" disabled>Approve video &amp; resume</button>
     </div>
 </header>
 
-<main class="wrap">
-    <div class="review-head">
-        <div>
-            <h1 th:text="${video.title}">Video title</h1>
-            <span class="pill" th:classappend="${'pill--' + video.status}" th:text="${video.status}"
-                  style="margin-top:8px">STATUS</span>
+<div class="banner banner-amber" id="conflictBanner" hidden>
+    <span class="warn">⚠</span>
+    <span>This clip changed since you opened it (version conflict, 409). Reload to get the latest — your decisions on other clips are already saved.</span>
+    <button class="btn btn-sm" id="reloadClipBtn">Reload clip</button>
+</div>
+<div class="banner banner-green" id="allApprovedBanner" hidden>
+    <span>✓</span>
+    <span><b id="allApprovedText">All clips approved</b><br/><span style="font-size:12.5px">Ready to move to publishing prep.</span></span>
+</div>
+<div class="banner banner-neutral" id="noneApprovedBanner" hidden>
+    <span class="info-ic">i</span>
+    <span><b>No clips approved yet.</b> Approve at least one clip to continue. Rejections don't block.</span>
+</div>
+
+<main class="review">
+    <aside class="clips-col">
+        <div class="clips-col-head">
+            <h2>Clips</h2>
+            <span class="count" id="clipCount"></span>
         </div>
-        <form th:if="${video.status.name() == 'READY_FOR_REVIEW'}" method="post"
-              th:action="@{/videos/{v}/dashboard/approve(v=${video.id})}">
-            <button class="btn btn-primary" type="submit">Approve video &amp; resume</button>
-        </form>
-    </div>
+        <div id="clipList"></div>
+    </aside>
 
-    <div class="clips">
-        <article class="clip card" th:each="clip : ${clips}" th:attr="data-status=${clip.status}">
+    <section class="stage-col">
+        <div class="stage-label" id="stageLabel">—</div>
+        <div class="stage-frame">
+            <video id="player" controls preload="metadata"></video>
+        </div>
+        <div class="stage-hints">
+            <span class="hint-group"><kbd>A</kbd> approve</span>
+            <span class="hint-group"><kbd>R</kbd> reject</span>
+            <span class="hint-group"><kbd>N</kbd> next clip</span>
+            <span class="hint-group"><kbd>T</kbd> transcript</span>
+            <span class="hint-group"><kbd>E</kbd> edit copy</span>
+            <p>decisions save immediately — no page reload</p>
+        </div>
+    </section>
 
-            <section class="media">
-                <div class="top">
-                    <h3 th:text="'clip ' + ${clip.clipIndex}">clip</h3>
-                    <span class="pill" th:classappend="${'pill--' + clip.status}" th:text="${clip.status}">STATUS</span>
-                </div>
-
-                <video controls preload="metadata" th:src="@{${clip.downloadUrl}}"></video>
-
-                <div class="score" th:if="${clip.score != null}">
-                    <div class="n"><span th:text="${clip.overallScore}">0</span><small>/100</small></div>
-                    <div class="bars">
-                        <div class="bar"><span>hook</span>
-                            <span class="track"><span class="fill" th:style="'width:' + ${clip.score.hook * 10} + '%'"></span></span>
-                            <b th:text="${clip.score.hook}">0</b></div>
-                        <div class="bar"><span>edu</span>
-                            <span class="track"><span class="fill" th:style="'width:' + ${clip.score.educationalValue * 10} + '%'"></span></span>
-                            <b th:text="${clip.score.educationalValue}">0</b></div>
-                        <div class="bar"><span>emotion</span>
-                            <span class="track"><span class="fill" th:style="'width:' + ${clip.score.emotion * 10} + '%'"></span></span>
-                            <b th:text="${clip.score.emotion}">0</b></div>
-                        <div class="bar"><span>viral</span>
-                            <span class="track"><span class="fill" th:style="'width:' + ${clip.score.virality * 10} + '%'"></span></span>
-                            <b th:text="${clip.score.virality}">0</b></div>
-                    </div>
-                    <p class="reason" th:text="${clip.score.reason}">reason</p>
-                </div>
-
-                <details class="tr"><summary>Transcript</summary><p th:text="${clip.transcript}">transcript</p></details>
-
-                <div class="actions">
-                    <form method="post" th:action="@{/videos/{v}/dashboard/clips/{c}/approve(v=${video.id},c=${clip.clipIndex})}">
-                        <input type="hidden" name="version" th:value="${clip.version}"/>
-                        <button class="btn btn-good sm" type="submit">Approve</button></form>
-                    <form method="post" th:action="@{/videos/{v}/dashboard/clips/{c}/reject(v=${video.id},c=${clip.clipIndex})}">
-                        <input type="hidden" name="version" th:value="${clip.version}"/>
-                        <button class="btn btn-bad sm" type="submit">Reject</button></form>
-                    <a class="btn btn-ghost sm" th:href="@{${clip.downloadUrl}}">Download</a>
-                </div>
-
-                <form method="post" class="regen"
-                      th:action="@{/videos/{v}/dashboard/clips/{c}/regenerate(v=${video.id},c=${clip.clipIndex})}">
-                    <input type="hidden" name="version" th:value="${clip.version}"/>
-                    <select class="mini" name="field" aria-label="Field to regenerate">
-                        <option th:each="field : ${fields}" th:value="${field}" th:text="${field}"></option>
-                    </select>
-                    <select class="mini" name="platform" aria-label="Platform">
-                        <option value="">no platform</option>
-                        <option th:each="platform : ${clip.platforms}" th:value="${platform.platform}"
-                                th:text="${platform.platform}"></option>
-                    </select>
-                    <button class="btn btn-ghost sm" type="submit">Regenerate</button>
-                </form>
-            </section>
-
-            <form method="post" class="content"
-                  th:action="@{/videos/{v}/dashboard/clips/{c}/edit(v=${video.id},c=${clip.clipIndex})}">
-                <input type="hidden" name="version" th:value="${clip.version}"/>
-                <div class="field">
-                    <span class="flabel">Summary</span>
-                    <textarea name="summary" rows="3" th:text="${clip.summary}"></textarea>
-                </div>
-                <div class="frow">
-                    <div class="field"><span class="flabel">Keywords</span>
-                        <input name="keywords" th:value="${#strings.listJoin(clip.keywords, ', ')}"/></div>
-                    <div class="field"><span class="flabel">Tags</span>
-                        <input name="tags" th:value="${#strings.listJoin(clip.tags, ', ')}"/></div>
-                </div>
-
-                <div class="platform" th:each="platform, iter : ${clip.platforms}">
-                    <div class="phead" th:text="${platform.platform}">Platform</div>
-                    <input type="hidden" th:name="'platforms[' + ${iter.index} + '].platform'" th:value="${platform.platform}"/>
-                    <div class="field"><span class="flabel">Title</span>
-                        <input th:name="'platforms[' + ${iter.index} + '].title'" th:value="${platform.title}"/></div>
-                    <div class="field"><span class="flabel">Caption</span>
-                        <textarea rows="2" th:name="'platforms[' + ${iter.index} + '].caption'" th:text="${platform.caption}"></textarea></div>
-                    <div class="frow">
-                        <div class="field"><span class="flabel">Hashtags</span>
-                            <input th:name="'platforms[' + ${iter.index} + '].hashtags'" th:value="${#strings.listJoin(platform.hashtags, ', ')}"/></div>
-                        <div class="field"><span class="flabel">Call to action</span>
-                            <input th:name="'platforms[' + ${iter.index} + '].callToAction'" th:value="${platform.callToAction}"/></div>
-                    </div>
-                </div>
-
-                <div class="savebar"><button class="btn btn-primary" type="submit">Save changes</button></div>
-            </form>
-
-            <section class="designed" th:if="${editEnabled}">
-                <div class="top">
-                    <h4>Designed edit</h4>
-                    <span class="pill" th:if="${clip.designedEditPlan == null}">No plan</span>
-                    <span class="pill" th:if="${clip.designedEditPlan != null and clip.designedEditPlan.shots.?[block.name() != 'SOURCE'].size() == 0}">Source-only fallback</span>
-                    <span class="pill" th:if="${clip.designedEditPlan != null and clip.designedEditPlan.shots.?[block.name() != 'SOURCE'].size() > 0}">Plan ready</span>
-                    <span class="pill" th:if="${clip.designedEditStatus != null}" th:text="${clip.designedEditStatus}">PENDING</span>
-                </div>
-                <table class="shot-table" th:if="${clip.designedEditPlan != null}">
-                    <thead>
-                    <tr><th>#</th><th>Time</th><th>Block</th><th>Content</th></tr>
-                    </thead>
-                    <tbody>
-                    <tr th:each="shot, iter : ${clip.designedEditPlan.shots}">
-                        <td th:text="${iter.index + 1}">1</td>
-                        <td th:text="${#numbers.formatDecimal(shot.in, 1, 1)} + '–' + ${#numbers.formatDecimal(shot.out, 1, 1)}">0.0–3.0</td>
-                        <td th:text="${shot.block}">SOURCE</td>
-                        <td>
-                            <span th:if="${shot.headline != null}" th:text="${shot.headline}">headline</span>
-                            <span th:if="${shot.subline != null}" th:text="${shot.subline}">subline</span>
-                            <span th:if="${shot.lines != null}" th:text="${#strings.listJoin(shot.lines, ' / ')}">lines</span>
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
-                <div class="actions" th:if="${clip.designedEditPlan != null}">
-                    <form method="post" th:if="${clip.designedEditStatus == null or clip.designedEditStatus.name() != 'RENDERING'}"
-                          th:action="@{/videos/{v}/dashboard/clips/{c}/designed(v=${video.id},c=${clip.clipIndex})}">
-                        <button class="btn btn-primary sm" type="submit">Render designed edit</button>
-                    </form>
-                    <a class="btn btn-ghost sm" th:if="${clip.designedEditUrl != null}" th:href="${clip.designedEditUrl}">Download designed</a>
-                </div>
-            </section>
-        </article>
-    </div>
+    <aside class="detail-col" id="detail">
+        <div class="loading-state">Loading clips…</div>
+    </aside>
 </main>
+
+<div class="transcript-bar" id="transcriptBar" hidden>
+    <span>☰</span>
+    <span class="grow" id="transcriptLabel">Transcript</span>
+    <kbd>T</kbd>
+    <span id="transcriptChevron">›</span>
+</div>
+<div class="transcript-panel" id="transcriptPanel" hidden></div>
+
+<div class="toast" id="conflictToast" hidden>
+    <div class="t-eyebrow">409 CONFLICT</div>
+    <div class="t-title"><span class="warn">⚠</span>Clip updated elsewhere</div>
+    <p>The version you have is stale. Reload to see the latest.</p>
+    <a href="#" id="toastReload">Reload →</a>
+</div>
+
+<script th:inline="javascript">
+(() => {
+    const VIDEO_ID = [[${video.id}]];
+    const EDIT_ENABLED = [[${editEnabled}]];
+
+    const state = { clips: [], selected: 0, editing: false, activePlatform: 0, transcriptOpen: false };
+
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value ?? "").replace(/[&<>"']/g,
+        c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    async function api(path, options = {}) {
+        const res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options });
+        if (res.status === 409) {
+            showConflict();
+            throw new Error("conflict");
+        }
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        if (res.status === 202 || res.status === 204) return null;
+        return res.json();
+    }
+
+    function showConflict() {
+        $("conflictBanner").hidden = false;
+        $("conflictToast").hidden = false;
+    }
+    function hideConflict() {
+        $("conflictBanner").hidden = true;
+        $("conflictToast").hidden = true;
+    }
+
+    const selected = () => state.clips[state.selected];
+    const approvedCount = () => state.clips.filter(c => c.status === "APPROVED").length;
+
+    function scoreClass(score) {
+        return score >= 80 ? "score--high" : score >= 60 ? "score--mid" : "score--low";
+    }
+
+    function reviewPill(status) {
+        if (status === "APPROVED") return '<span class="pill pill--green">Approved</span>';
+        if (status === "REJECTED") return '<span class="pill pill--red">Rejected</span>';
+        return '<span class="pill pill--outline">Pending</span>';
+    }
+
+    function renderProgress() {
+        const total = state.clips.length;
+        const approved = approvedCount();
+        $("approvedCount").textContent = approved + " of " + total + " approved";
+        $("approveVideoBtn").disabled = approved === 0;
+        $("dots").innerHTML = state.clips.map((c, i) =>
+            `<span class="d ${c.status === "APPROVED" ? "approved" : c.status === "REJECTED" ? "rejected" : ""}${i === state.selected ? " selected" : ""}"></span>`).join("");
+        $("allApprovedBanner").hidden = !(total > 0 && approved === total);
+        if (total > 0 && approved === total) $("allApprovedText").textContent = "All " + total + " clips approved";
+        $("noneApprovedBanner").hidden = !(total > 0 && approved === 0);
+    }
+
+    function renderList() {
+        $("clipCount").textContent = String(state.clips.length);
+        $("clipList").innerHTML = state.clips.map((c, i) => `
+            <button class="clip-item ${i === state.selected ? "selected" : ""}" data-i="${i}">
+                <div class="clip-thumb">切</div>
+                <div class="clip-item-main">
+                    <div class="clip-item-name">Clip ${c.clipIndex}</div>
+                    <div class="clip-item-meta">${c.status.toLowerCase()}</div>
+                    <span class="score-chip ${scoreClass(c.overallScore)}">${c.overallScore}</span>
+                </div>
+                <div class="clip-item-state ${c.status === "APPROVED" ? "ok" : c.status === "REJECTED" ? "no" : "pending"}">
+                    ${c.status === "APPROVED" ? "✓" : c.status === "REJECTED" ? "✕" : "◐"}
+                </div>
+            </button>`).join("");
+        document.querySelectorAll(".clip-item").forEach(el =>
+            el.addEventListener("click", () => select(Number(el.dataset.i))));
+    }
+
+    function bar(label, value) {
+        return `<div class="sbar"><span>${label}</span>
+            <span class="track"><span style="width:${value * 10}%"></span></span><b>${value}/10</b></div>`;
+    }
+
+    function readMode(clip) {
+        const platform = clip.platforms[state.activePlatform];
+        const tabs = clip.platforms.map((p, i) =>
+            `<button class="ptab ${i === state.activePlatform ? "active" : ""}" data-ptab="${i}">${esc(p.platform)}</button>`).join("");
+        return `
+        <div class="card section-card">
+            <div class="section-head">
+                <h3>Generated content</h3>
+                <button class="btn btn-ghost btn-sm" id="editBtn">✎ Edit</button>
+            </div>
+            <div class="field-label">Summary
+                <button class="regen" data-regen="SUMMARY" title="Regenerate summary">⟳</button></div>
+            <div class="field-value">${esc(clip.summary)}</div>
+            <div class="field-label">Keywords
+                <button class="regen" data-regen="KEYWORDS" title="Regenerate keywords">⟳</button></div>
+            <div class="chips">${(clip.keywords || []).map(k => `<span class="chip">${esc(k)}</span>`).join("")}</div>
+            ${clip.platforms.length ? `<div class="ptabs">${tabs}</div>` : ""}
+            ${platform ? `
+            <div class="field-label">Title — ${esc(platform.platform)}
+                <button class="regen" data-regen="TITLE" title="Regenerate title">⟳</button></div>
+            <div class="field-value title-value">${esc(platform.title)}</div>
+            <div class="field-label">Caption
+                <button class="regen" data-regen="CAPTION" title="Regenerate caption">⟳</button></div>
+            <div class="field-value">${esc(platform.caption)}</div>
+            <div class="field-label">Hashtags
+                <button class="regen" data-regen="HASHTAGS" title="Regenerate hashtags">⟳</button></div>
+            <div class="chips">${(platform.hashtags || []).map(h => `<span class="chip tag">#${esc(h)}</span>`).join("")}</div>
+            <div class="field-label">Call to action
+                <button class="regen" data-regen="CALL_TO_ACTION" title="Regenerate call to action">⟳</button></div>
+            <div class="field-value">${esc(platform.callToAction)}</div>` : ""}
+        </div>`;
+    }
+
+    function editMode(clip) {
+        const platform = clip.platforms[state.activePlatform];
+        const tabs = clip.platforms.map((p, i) =>
+            `<button class="ptab ${i === state.activePlatform ? "active" : ""}" data-ptab="${i}">${esc(p.platform)}</button>`).join("");
+        return `
+        <div class="card section-card">
+            <div class="section-head">
+                <h3>Edit content</h3>
+                <span class="pill pill--accent">Editing — unsaved</span>
+            </div>
+            <div class="field-label">Summary</div>
+            <textarea id="f-summary" rows="3">${esc(clip.summary)}</textarea>
+            <div class="field-label">Keywords</div>
+            <input id="f-keywords" value="${esc((clip.keywords || []).join(", "))}"/>
+            <div class="field-label">Tags</div>
+            <input id="f-tags" value="${esc((clip.tags || []).join(", "))}"/>
+            ${clip.platforms.length ? `<div class="ptabs">${tabs}</div>` : ""}
+            ${platform ? `
+            <div class="field-label">Title — ${esc(platform.platform)}</div>
+            <input id="f-title" value="${esc(platform.title)}"/>
+            <div class="field-label">Caption</div>
+            <textarea id="f-caption" rows="3">${esc(platform.caption)}</textarea>
+            <div class="field-label">Hashtags</div>
+            <input id="f-hashtags" value="${esc((platform.hashtags || []).map(h => "#" + h).join(" "))}"/>
+            <div class="field-label">Call to action</div>
+            <input id="f-cta" value="${esc(platform.callToAction)}"/>` : ""}
+            <div class="edit-actions">
+                <button class="btn btn-primary" id="saveBtn">Save changes</button>
+                <button class="btn btn-ghost" id="cancelBtn">Cancel</button>
+            </div>
+            <div class="edit-note">saves bump the clip version (v${clip.version} → v${clip.version + 1})</div>
+        </div>`;
+    }
+
+    const BLOCK_ICON = { TITLE_CARD: "A", SOURCE: "▦", B_ROLL: "&lt;/&gt;", LOGO_WALL: "▣" };
+
+    function designedSection(clip) {
+        if (!EDIT_ENABLED) return "";
+        const plan = clip.designedEditPlan;
+        const status = clip.designedEditStatus;
+        if (!plan) {
+            return `<div class="card section-card">
+                <div class="section-head"><h3>Designed edit</h3><span class="pill">No plan</span></div>
+                <div class="de-sub">No LLM shot list was planned for this clip — the source-only cut is used.</div>
+            </div>`;
+        }
+        const designed = plan.shots.filter(s => s.block !== "SOURCE").length > 0;
+        const total = Math.max(...plan.shots.map(s => s.out), 0.1);
+        const timeline = plan.shots.map(s => {
+            const w = Math.max(2, (s.out - s.in) / total * 100);
+            const cls = ["SOURCE", "B_ROLL", "TITLE_CARD", "LOGO_WALL"].includes(s.block) ? s.block : "OTHER";
+            return `<div class="seg ${cls}" style="width:${w}%">${w > 10 ? s.block : ""}</div>`;
+        }).join("");
+        const shots = plan.shots.map(s => `
+            <li class="shot">
+                <div class="shot-ic">${BLOCK_ICON[s.block] || "•"}</div>
+                <div>
+                    <span class="shot-block">${s.block}</span>
+                    <span class="shot-time">${s.in.toFixed(1)} – ${s.out.toFixed(1)}</span>
+                    <div class="shot-desc">${esc([s.headline, s.subline, ...(s.lines || [])].filter(Boolean).join(" — "))}</div>
+                </div>
+            </li>`).join("");
+        let stateBlock = "";
+        if (status === "QUEUED" || status === "RENDERING") {
+            stateBlock = `<div class="de-render-state"><span class="spin"></span>Rendering designed edit…</div>
+                <div class="de-note">safe to leave this page — the render continues in the background</div>`;
+        } else if (status === "READY") {
+            stateBlock = `<div class="de-note"><span class="ok-dot">●</span>Rendered and ready.</div>`;
+        } else if (status === "FAILED") {
+            stateBlock = `<div class="de-note" style="color:var(--red)">Render failed — you can retry.</div>`;
+        } else {
+            stateBlock = `<div class="de-note"><span class="ok-dot">●</span>Plan ready — not yet rendered. Rendering replaces the source-only cut for this clip.</div>`;
+        }
+        const renderBtn = status === "QUEUED" || status === "RENDERING"
+            ? `<button class="btn btn-ghost" disabled>Rendering…</button>`
+            : `<button class="btn btn-primary" id="renderDeBtn">Render designed edit</button>`;
+        const download = status === "READY" && clip.designedEditUrl
+            ? `<a class="btn btn-ghost" href="${esc(clip.designedEditUrl)}">Download designed</a>` : "";
+        return `<div class="card section-card">
+            <div class="section-head"><h3>Designed edit</h3>
+                <span class="pill ${designed ? "pill--green" : ""}">${designed ? "Plan ready" : "Source-only fallback"}</span>
+                ${status ? `<span class="pill ${status === "READY" ? "pill--green" : status === "FAILED" ? "pill--red" : status === "RENDERING" || status === "QUEUED" ? "pill--blue" : ""}">${status}</span>` : ""}
+            </div>
+            <div class="de-sub">LLM-planned shot list — mixes source footage with cards and a logo wall</div>
+            <div class="timeline">${timeline}</div>
+            <div class="timeline-scale"><span>0:00</span><span>0:${String(Math.round(total)).padStart(2, "0")}</span></div>
+            <ul class="shot-list">${shots}</ul>
+            ${stateBlock}
+            <div class="callout-actions">${renderBtn}${download}</div>
+            <div class="de-status-line">designedEditStatus: QUEUED → RENDERING → READY</div>
+        </div>`;
+    }
+
+    function renderDetail() {
+        const clip = selected();
+        if (!clip) {
+            $("detail").innerHTML = '<div class="loading-state">No clips to review yet.</div>';
+            return;
+        }
+        const words = (clip.transcript || "").trim() ? clip.transcript.trim().split(/\s+/).length : 0;
+        $("stageLabel").textContent = "CLIP " + clip.clipIndex + " OF " + state.clips.length + " · 1080×1920";
+        const player = $("player");
+        const src = clip.downloadUrl;
+        if (!player.src.endsWith(src)) player.src = src;
+        $("transcriptBar").hidden = false;
+        $("transcriptLabel").textContent = "Transcript · " + words + " words";
+        $("transcriptPanel").textContent = clip.transcript || "";
+
+        $("detail").innerHTML = `
+            <div class="detail-head">
+                <span class="of">CLIP ${clip.clipIndex} OF ${state.clips.length}</span>
+                ${reviewPill(clip.status)}
+            </div>
+            <h2 class="detail-title">${esc(clip.summary || "Clip " + clip.clipIndex)}</h2>
+            <div class="score-row">
+                <div class="gauge" style="--pct:${clip.overallScore}">
+                    <span class="n">${clip.overallScore}</span><span class="of">of 100</span>
+                </div>
+                <div class="score-bars">
+                    ${bar("Hook", clip.score.hook)}
+                    ${bar("Educational", clip.score.educationalValue)}
+                    ${bar("Emotion", clip.score.emotion)}
+                    ${bar("Virality", clip.score.virality)}
+                </div>
+            </div>
+            <p class="reason">“${esc(clip.score.reason)}”</p>
+            <div class="decide-row">
+                <button class="btn ${clip.status === "APPROVED" ? "is-active-good" : "btn-good"}" id="approveBtn">
+                    ✓ Approve <span class="kbd-hint">A</span></button>
+                <button class="btn ${clip.status === "REJECTED" ? "is-active-bad" : "btn-bad"}" id="rejectBtn">
+                    ✕ Reject <span class="kbd-hint">R</span></button>
+                <a class="btn-icon" href="${esc(clip.downloadUrl)}" download title="Download clip">⤓</a>
+            </div>
+            ${state.editing ? editMode(clip) : readMode(clip)}
+            ${designedSection(clip)}`;
+
+        $("approveBtn").addEventListener("click", () => decide("approve"));
+        $("rejectBtn").addEventListener("click", () => decide("reject"));
+        const editBtn = $("editBtn");
+        if (editBtn) editBtn.addEventListener("click", () => { state.editing = true; renderDetail(); });
+        const saveBtn = $("saveBtn");
+        if (saveBtn) saveBtn.addEventListener("click", saveEdit);
+        const cancelBtn = $("cancelBtn");
+        if (cancelBtn) cancelBtn.addEventListener("click", () => { state.editing = false; renderDetail(); });
+        document.querySelectorAll("[data-ptab]").forEach(el =>
+            el.addEventListener("click", () => { state.activePlatform = Number(el.dataset.ptab); renderDetail(); }));
+        document.querySelectorAll("[data-regen]").forEach(el =>
+            el.addEventListener("click", () => regen(el.dataset.regen, el)));
+        const renderDeBtn = $("renderDeBtn");
+        if (renderDeBtn) renderDeBtn.addEventListener("click", renderDesigned);
+    }
+
+    function renderAll() {
+        renderProgress();
+        renderList();
+        renderDetail();
+    }
+
+    function select(i) {
+        if (i < 0 || i >= state.clips.length) return;
+        state.selected = i;
+        state.editing = false;
+        state.activePlatform = 0;
+        renderAll();
+    }
+
+    async function load(keepSelection) {
+        const clips = await api("/videos/" + VIDEO_ID + "/review");
+        state.clips = clips;
+        if (!keepSelection) {
+            state.selected = Math.min(state.selected, Math.max(0, clips.length - 1));
+        }
+        hideConflict();
+        renderAll();
+    }
+
+    async function decide(action) {
+        const clip = selected();
+        try {
+            const updated = await api("/videos/" + VIDEO_ID + "/review/" + clip.clipIndex + "/" + action + "?version=" + clip.version,
+                { method: "POST" });
+            Object.assign(clip, updated);
+            renderAll();
+        } catch (ignored) {
+        }
+    }
+
+    const csv = value => value.split(",").map(s => s.trim()).filter(Boolean);
+    const hashtags = value => value.split(/[\s,]+/).map(s => s.replace(/^#/, "").trim()).filter(Boolean);
+
+    async function saveEdit() {
+        const clip = selected();
+        const platforms = clip.platforms.map((p, i) => {
+            if (i !== state.activePlatform || !$("f-title")) return p;
+            return {
+                platform: p.platform,
+                title: $("f-title").value,
+                caption: $("f-caption").value,
+                hashtags: hashtags($("f-hashtags").value),
+                callToAction: $("f-cta").value
+            };
+        });
+        try {
+            const updated = await api("/videos/" + VIDEO_ID + "/review/" + clip.clipIndex, {
+                method: "PATCH",
+                body: JSON.stringify({
+                    version: clip.version,
+                    summary: $("f-summary").value,
+                    keywords: csv($("f-keywords").value),
+                    tags: csv($("f-tags").value),
+                    platforms
+                })
+            });
+            Object.assign(clip, updated);
+            state.editing = false;
+            renderAll();
+        } catch (ignored) {
+        }
+    }
+
+    async function regen(field, el) {
+        const clip = selected();
+        const scoped = ["TITLE", "CAPTION", "HASHTAGS", "CALL_TO_ACTION"].includes(field);
+        const platform = scoped && clip.platforms[state.activePlatform]
+            ? clip.platforms[state.activePlatform].platform : null;
+        el.classList.add("busy");
+        try {
+            const updated = await api("/videos/" + VIDEO_ID + "/review/" + clip.clipIndex + "/regenerate?version=" + clip.version,
+                { method: "POST", body: JSON.stringify({ field, platform }) });
+            Object.assign(clip, updated);
+            renderAll();
+        } catch (ignored) {
+            el.classList.remove("busy");
+        }
+    }
+
+    async function renderDesigned() {
+        const clip = selected();
+        try {
+            await api("/videos/" + VIDEO_ID + "/clips/" + clip.clipIndex + "/designed", { method: "POST" });
+            clip.designedEditStatus = "QUEUED";
+            renderDetail();
+        } catch (ignored) {
+        }
+    }
+
+    $("approveVideoBtn").addEventListener("click", async () => {
+        try {
+            await api("/videos/" + VIDEO_ID + "/review/approve", { method: "POST" });
+            location.href = "/";
+        } catch (ignored) {
+        }
+    });
+
+    $("reloadClipBtn").addEventListener("click", () => load(true));
+    $("toastReload").addEventListener("click", e => { e.preventDefault(); load(true); });
+
+    const toggleTranscript = () => {
+        state.transcriptOpen = !state.transcriptOpen;
+        $("transcriptPanel").hidden = !state.transcriptOpen;
+        $("transcriptChevron").textContent = state.transcriptOpen ? "⌄" : "›";
+    };
+    $("transcriptBar").addEventListener("click", toggleTranscript);
+
+    document.addEventListener("keydown", e => {
+        if (e.target.matches("input, textarea, select")) return;
+        const key = e.key.toLowerCase();
+        if (key === "a") decide("approve");
+        else if (key === "r") decide("reject");
+        else if (key === "n") select((state.selected + 1) % state.clips.length);
+        else if (key === "p") select((state.selected - 1 + state.clips.length) % state.clips.length);
+        else if (key === "t") toggleTranscript();
+        else if (key === "e") { state.editing = !state.editing; renderDetail(); }
+    });
+
+    setInterval(() => {
+        if (state.editing) return;
+        if (state.clips.some(c => c.designedEditStatus === "QUEUED" || c.designedEditStatus === "RENDERING")) {
+            load(true);
+        }
+    }, 5000);
+
+    load(false).catch(() => {
+        $("detail").innerHTML = '<div class="loading-state">Could not load the review. Refresh to try again.</div>';
+    });
+})();
+</script>
 </body>
 </html>
