@@ -10,13 +10,6 @@ spring:
       chat:
         model: ${CHAT_MODEL:llama4:latest}
 
-sekisho:
-  client:
-    token-uri: ${SEKISHO_TOKEN_URI:${INKAN_TOKEN_URI:https://inkan.dashaun.ai/oauth2/token}}
-    client-id: ${SEKISHO_CLIENT_ID:ian}
-    client-secret: ${SEKISHO_CLIENT_SECRET:ian-dev-secret}
-    scope: ${SEKISHO_SCOPE:models.invoke}
-
 kirinuki:
   pipeline:
     media:

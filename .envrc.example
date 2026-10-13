@@ -1,21 +1,15 @@
 # Copy to `.envrc`, fill in the real values, then `direnv allow` (or `source .envrc`).
 # `.envrc` is gitignored; this example is what ships. Never put a real secret in this file.
 
-# ---- Sekisho / Inkan (default dev gateway) --------------------------------------------------
-# OpenAI-compatible base URL for the chat model. Note the /v1.
-export SEKISHO_URL="https://sekisho.dashaun.ai/v1"
-# OAuth2 token endpoint used by the Sekisho client to fetch a JWT.
-export INKAN_TOKEN_URI="https://inkan.dashaun.ai/oauth2/token"
-# Client credentials for the Inkan token endpoint.
-export SEKISHO_CLIENT_ID="ian"
-export SEKISHO_CLIENT_SECRET="ian-dev-secret"
-# Model served by the gateway.
-export SEKISHO_MODEL="llama4:latest"
-
-# Optional overrides for the Spring AI OpenAI client. If unset, the values above are used.
-# export OPENAI_BASE_URL="${SEKISHO_URL}"
-# export OPENAI_API_KEY="placeholder"
-# export CHAT_MODEL="${SEKISHO_MODEL}"
+# ---- Inference (required, no defaults) -------------------------------------------------------
+# OpenAI-compatible endpoint for the chat model. Note the /v1. Ollama serves one at :11434/v1.
+export OPENAI_BASE_URL="http://localhost:11434/v1"
+# API key for that endpoint. Ollama accepts any non-empty value.
+export OPENAI_API_KEY="ollama"
+# Optional model override (defaults to llama4:latest).
+# export CHAT_MODEL="llama4:latest"
+# Optional model override for edit planning (defaults to CHAT_MODEL).
+# export EDIT_PLAN_MODEL="llama4:latest"
 
 # ---- Database (defaults suit the local docker compose) ---------------------------------------
 export DATABASE_URL="jdbc:postgresql://localhost:5432/kirinuki"
