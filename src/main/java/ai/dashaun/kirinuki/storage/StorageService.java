@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,15 +22,17 @@ public class StorageService {
     private final Path root;
 
     public StorageService(KirinukiStorageProperties properties) {
-        this.root = properties.root().toAbsolutePath().normalize();
+        Objects.requireNonNull(properties, "kirinuki.storage properties must be set");
+        this.root = Objects.requireNonNull(properties.root(), "kirinuki.storage.root must be set")
+                .toAbsolutePath().normalize();
     }
 
     public Path videoDirectory(String videoId) {
-        return root.resolve(videoId);
+        return safeResolve(root, Objects.requireNonNull(videoId, "videoId must not be null"));
     }
 
     public Path resolve(String videoId, String artifact) {
-        return videoDirectory(videoId).resolve(artifact);
+        return safeResolve(videoDirectory(videoId), Objects.requireNonNull(artifact, "artifact must not be null"));
     }
 
     public boolean exists(String videoId, String artifact) {
@@ -66,6 +69,14 @@ public class StorageService {
         } catch (IOException exception) {
             log.warn("Could not discard partial {} for video {}", artifact, videoId, exception);
         }
+    }
+
+    private Path safeResolve(Path base, String segment) {
+        Path resolved = base.resolve(segment).normalize();
+        if (!resolved.startsWith(base.normalize())) {
+            throw new KirinukiException("Invalid path segment: " + segment);
+        }
+        return resolved;
     }
 
     private String temporaryName(String artifact) {

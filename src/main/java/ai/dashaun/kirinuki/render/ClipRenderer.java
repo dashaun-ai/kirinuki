@@ -17,6 +17,7 @@ import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 import ai.dashaun.kirinuki.media.AudioFeatures;
 import ai.dashaun.kirinuki.media.FfmpegClient;
 import ai.dashaun.kirinuki.media.FramingPlan;
+import ai.dashaun.kirinuki.media.MediaProfile;
 import ai.dashaun.kirinuki.media.Silence;
 import ai.dashaun.kirinuki.media.SpeakerSegment;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
@@ -57,18 +58,20 @@ public class ClipRenderer {
         List<Double> sceneCuts = readScenes(scenesFile);
         List<Silence> silences = readSilences(audioFeaturesFile);
         FaceTracks faces = readFaces(facesFile);
+        MediaProfile profile = ffmpegClient.probeMediaProfile(source);
         createDirectory(clipDirectory);
 
         List<Clip> clips = new ArrayList<>();
         for (int index = 0; index < scored.size(); index++) {
-            clips.add(renderOne(source, words, silences, sceneCuts, faces, scored.get(index), index + 1, clipDirectory));
+            clips.add(renderOne(source, words, silences, sceneCuts, faces, profile, scored.get(index), index + 1,
+                    clipDirectory));
         }
         log.info("Rendered {} clips into {}", clips.size(), clipDirectory);
         write(clips, target);
     }
 
     private Clip renderOne(Path source, List<Word> words, List<Silence> silences, List<Double> sceneCuts,
-            FaceTracks faces, ScoredCandidate scored, int number, Path clipDirectory) {
+            FaceTracks faces, MediaProfile profile, ScoredCandidate scored, int number, Path clipDirectory) {
         var candidate = scored.candidate();
         BoundaryRefiner.Bounds bounds = boundaryRefiner.refine(candidate, words, silences, sceneCuts);
         double start = bounds.start();
@@ -76,12 +79,29 @@ public class ClipRenderer {
         Path subtitles = clipDirectory.resolve("clip-%d.ass".formatted(number));
         Path video = clipDirectory.resolve("clip-%d.mp4".formatted(number));
 
+        if (Files.exists(video)) {
+            log.info("Clip {} already rendered at {}, skipping", number, video);
+            return new Clip(number, start, end, scored.overallScore(), scored.score().reason(),
+                    video.getFileName().toString());
+        }
+
         subtitleWriter.write(words, start, end, subtitles);
         FramingPlan plan = framingPlan(faces, words, start, end);
-        ffmpegClient.renderVertical(source, start, end - start, subtitles, video, plan);
+        Path part = clipDirectory.resolve("clip-%d.part.mp4".formatted(number));
+        ffmpegClient.renderVertical(source, start, end - start, subtitles, part, plan, profile);
+        commit(part, video);
 
         return new Clip(number, start, end, scored.overallScore(), scored.score().reason(),
                 video.getFileName().toString());
+    }
+
+    private void commit(Path part, Path target) {
+        try {
+            Files.move(part, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException exception) {
+            throw new KirinukiException("Could not commit rendered clip to " + target, exception);
+        }
     }
 
     private FramingPlan framingPlan(FaceTracks faces, List<Word> words, double start, double end) {

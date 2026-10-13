@@ -111,4 +111,30 @@ class StorageServiceTest {
     void should_keep_each_video_in_its_own_directory() {
         assertThat(storageService.videoDirectory(VIDEO_ID)).isEqualTo(root.resolve(VIDEO_ID));
     }
+
+    @Test
+    void should_reject_an_absolute_video_id() {
+        assertThatExceptionOfType(KirinukiException.class)
+                .isThrownBy(() -> storageService.videoDirectory("/etc/passwd"));
+    }
+
+    @Test
+    void should_reject_a_video_id_that_escapes_the_root() {
+        assertThatExceptionOfType(KirinukiException.class)
+                .isThrownBy(() -> storageService.videoDirectory("../escape"));
+    }
+
+    @Test
+    void should_reject_an_artifact_that_escapes_the_video_directory() {
+        assertThatExceptionOfType(KirinukiException.class)
+                .isThrownBy(() -> storageService.resolve(VIDEO_ID, "../escape.mp4"));
+    }
+
+    @Test
+    void should_require_a_non_null_root() {
+        KirinukiStorageProperties properties = new KirinukiStorageProperties(null);
+
+        assertThatExceptionOfType(NullPointerException.class)
+                .isThrownBy(() -> new StorageService(properties));
+    }
 }

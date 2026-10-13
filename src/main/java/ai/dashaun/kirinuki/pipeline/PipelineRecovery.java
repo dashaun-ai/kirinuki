@@ -30,18 +30,26 @@ class PipelineRecovery {
     }
 
     private void resumeUnfinished() {
+        List<Video> stranded;
         try {
-            List<Video> stranded = videoRepository.findAll().stream()
+            stranded = videoRepository.findAll().stream()
                     .filter(video -> video.getStatus().isResumable())
                     .toList();
-            if (stranded.isEmpty()) {
-                return;
-            }
-            log.info("Resuming {} unfinished video(s)", stranded.size());
-            stranded.forEach(video -> pipelineOrchestrator.startAsync(video.getId()));
         } catch (RuntimeException exception) {
             log.error("Recovery scan failed; videos can still be re-driven with POST /videos/{id}/advance",
                     exception);
+            return;
         }
+        if (stranded.isEmpty()) {
+            return;
+        }
+        log.info("Resuming {} unfinished video(s)", stranded.size());
+        stranded.forEach(video -> {
+            try {
+                pipelineOrchestrator.startAsync(video.getId());
+            } catch (RuntimeException exception) {
+                log.error("Could not resume video {}", video.getId(), exception);
+            }
+        });
     }
 }

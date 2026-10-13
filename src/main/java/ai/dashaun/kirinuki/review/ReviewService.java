@@ -11,9 +11,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import ai.dashaun.kirinuki.common.ClipReviewNotFoundException;
 import ai.dashaun.kirinuki.common.InvalidRegenerationException;
@@ -59,8 +59,8 @@ public class ReviewService {
         this.designedEditService = designedEditService;
     }
 
+    @Transactional(readOnly = true)
     public List<ClipReviewResponse> review(UUID videoId) {
-        ensureSeeded(videoId);
         Map<Integer, ScoredCandidate> scored = scoredByClipIndex(videoId);
         Map<Integer, EditPlan> plans = plansByClipIndex(videoId);
         Map<Integer, DesignedEdit> designed = designedByClipIndex(videoId);
@@ -69,9 +69,12 @@ public class ReviewService {
                 .toList();
     }
 
+    @Transactional
     public ClipReviewResponse edit(UUID videoId, int clipIndex, EditClipContentRequest request) {
-        ensureSeeded(videoId);
         ClipReview row = row(videoId, clipIndex);
+        if (request.version() == null || !request.version().equals(row.getVersion())) {
+            throw new StaleClipReviewException(videoId, clipIndex, null);
+        }
         ClipContent current = readContent(row);
         ClipContent edited = new ClipContent(
                 current.clipIndex(),
@@ -79,16 +82,18 @@ public class ReviewService {
                 request.keywords() != null ? request.keywords() : current.keywords(),
                 request.tags() != null ? request.tags() : current.tags(),
                 request.platforms() != null ? request.platforms() : current.platforms());
-        row.setVersion(request.version());
         row.setContent(writeContent(edited));
         row.setUpdatedAt(Instant.now());
         return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId), planFor(videoId, clipIndex),
                 designedFor(videoId, clipIndex));
     }
 
-    public ClipReviewResponse decide(UUID videoId, int clipIndex, ReviewStatus status) {
-        ensureSeeded(videoId);
+    @Transactional
+    public ClipReviewResponse decide(UUID videoId, int clipIndex, ReviewStatus status, Long version) {
         ClipReview row = row(videoId, clipIndex);
+        if (version == null || !version.equals(row.getVersion())) {
+            throw new StaleClipReviewException(videoId, clipIndex, null);
+        }
         row.setStatus(status);
         row.setUpdatedAt(Instant.now());
         return toResponse(videoId, save(videoId, clipIndex, row), scoredByClipIndex(videoId), planFor(videoId, clipIndex),
@@ -99,9 +104,12 @@ public class ReviewService {
         return videoService.approveReview(videoId);
     }
 
-    public ClipReviewResponse regenerate(UUID videoId, int clipIndex, RegenerateFieldRequest request) {
-        ensureSeeded(videoId);
+    @Transactional
+    public ClipReviewResponse regenerate(UUID videoId, int clipIndex, RegenerateFieldRequest request, Long version) {
         ClipReview row = row(videoId, clipIndex);
+        if (version == null || !version.equals(row.getVersion())) {
+            throw new StaleClipReviewException(videoId, clipIndex, null);
+        }
         Map<Integer, ScoredCandidate> scored = scoredByClipIndex(videoId);
         ScoredCandidate candidate = scored.get(clipIndex);
         String transcript = candidate == null ? "" : candidate.candidate().text();
@@ -181,30 +189,24 @@ public class ReviewService {
         return -1;
     }
 
-    private void ensureSeeded(UUID videoId) {
+    @Transactional
+    public void seedFromContent(UUID videoId, Path contentPath) {
         if (clipReviewRepository.existsByVideoId(videoId)) {
             return;
         }
-        List<ClipContent> content = readList(videoService.artifactPath(videoId, Artifacts.CONTENT),
-                new TypeReference<List<ClipContent>>() {
-                });
+        List<ClipContent> content = readList(contentPath, new TypeReference<List<ClipContent>>() {
+        });
         Instant now = Instant.now();
         List<ClipReview> rows = content.stream()
                 .map(clip -> new ClipReview(UUID.randomUUID(), videoId, clip.clipIndex(), ReviewStatus.PENDING,
                         writeContent(clip), now, now, null))
                 .toList();
-        try {
-            clipReviewRepository.saveAll(rows);
-        } catch (DataIntegrityViolationException exception) {
-            if (!clipReviewRepository.existsByVideoId(videoId)) {
-                throw exception;
-            }
-        }
+        clipReviewRepository.saveAll(rows);
     }
 
     private ClipReview save(UUID videoId, int clipIndex, ClipReview row) {
         try {
-            return clipReviewRepository.save(row);
+            return clipReviewRepository.saveAndFlush(row);
         } catch (ObjectOptimisticLockingFailureException exception) {
             throw new StaleClipReviewException(videoId, clipIndex, exception);
         }
@@ -216,6 +218,9 @@ public class ReviewService {
     }
 
     private Map<Integer, ScoredCandidate> scoredByClipIndex(UUID videoId) {
+        if (!storageService.exists(videoId.toString(), Artifacts.SCORED)) {
+            return Map.of();
+        }
         List<ScoredCandidate> scored = readList(videoService.artifactPath(videoId, Artifacts.SCORED),
                 new TypeReference<List<ScoredCandidate>>() {
                 });

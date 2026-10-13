@@ -112,6 +112,19 @@ class WhisperClientTest {
         assertThat(target.getParent().resolve("audio.json")).doesNotExist();
     }
 
+    @Test
+    void should_handle_audio_files_without_an_extension() throws IOException {
+        Path audio = audio("audio");
+        Path target = Path.of(directory.toString(), "transcript.json");
+        producedJson("audio.json", "{}");
+
+        client(Map.of()).transcribe(audio, target);
+
+        assertThat(target).exists();
+    }
+
+
+
     private WhisperClient client(Map<String, Object> configuration) {
         return new WhisperClient(new Binder(new MapConfigurationPropertySource(configuration))
                 .bindOrCreate("kirinuki.pipeline", KirinukiPipelineProperties.class), processRunner);

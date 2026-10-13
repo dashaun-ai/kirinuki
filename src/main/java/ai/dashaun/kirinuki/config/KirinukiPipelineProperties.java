@@ -75,6 +75,7 @@ public record KirinukiPipelineProperties(
             @DefaultValue("400ms") Duration leadIn,
             @DefaultValue("600ms") Duration tail,
             @DefaultValue("1200ms") Duration snapTolerance,
+            @DefaultValue("30") int maxFps,
             @DefaultValue("30m") Duration timeout,
             @DefaultValue Reframe reframe) {
 
@@ -112,7 +113,7 @@ public record KirinukiPipelineProperties(
             @DefaultValue("true") boolean autoRender,
             @DefaultValue("3") int topClips,
             @DefaultValue("spring") String theme,
-            @DefaultValue("${EDIT_PLAN_MODEL:${SEKISHO_MODEL:llama4:latest}}") String planModel,
+            @DefaultValue("${EDIT_PLAN_MODEL:${CHAT_MODEL:llama4:latest}}") String planModel,
             @DefaultValue("0.4") double planTemperature,
             @DefaultValue("4096") int planMaxTokens,
             @DefaultValue("0.8") double minShotSeconds,

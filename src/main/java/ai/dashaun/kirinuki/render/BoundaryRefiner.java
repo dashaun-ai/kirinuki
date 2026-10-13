@@ -58,6 +58,9 @@ public class BoundaryRefiner {
         Silence best = null;
         double bestDelta = Double.MAX_VALUE;
         for (Silence silence : silences) {
+            if (silence.start() > target) {
+                continue;
+            }
             double delta = Math.abs(silence.end() - target);
             if (delta <= tolerance && delta < bestDelta) {
                 best = silence;

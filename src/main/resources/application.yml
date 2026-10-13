@@ -28,10 +28,10 @@ spring:
 
   ai:
     openai:
-      base-url: ${OPENAI_BASE_URL:${SEKISHO_URL:https://sekisho.dashaun.ai/v1}}
-      api-key: ${OPENAI_API_KEY:${SEKISHO_API_KEY:placeholder}}
+      base-url: ${OPENAI_BASE_URL}
+      api-key: ${OPENAI_API_KEY}
       chat:
-        model: ${CHAT_MODEL:${SEKISHO_MODEL:llama4:latest}}
+        model: ${CHAT_MODEL:llama4:latest}
         max-tokens: 512
 
 server:
@@ -72,7 +72,7 @@ kirinuki:
       auto-render: true
       top-clips: 3
       theme: spring
-      plan-model: ${EDIT_PLAN_MODEL:${CHAT_MODEL:${SEKISHO_MODEL:llama4:latest}}}
+      plan-model: ${EDIT_PLAN_MODEL:${CHAT_MODEL:llama4:latest}}
       plan-temperature: 0.4
       plan-max-tokens: 4096
       min-shot-seconds: 0.8

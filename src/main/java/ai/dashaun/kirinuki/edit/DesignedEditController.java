@@ -22,7 +22,8 @@ public class DesignedEditController {
         this.designedEditService = designedEditService;
     }
 
-    @PostMapping("/videos/{videoId}/clips/{clipIndex}/designed")
+    @PostMapping({"/videos/{videoId}/clips/{clipIndex}/designed",
+            "/videos/{videoId}/review/{clipIndex}/designed-edit"})
     public ResponseEntity<Void> render(@PathVariable UUID videoId, @PathVariable int clipIndex) {
         designedEditService.render(videoId, clipIndex);
         return ResponseEntity.accepted().build();
@@ -35,6 +36,9 @@ public class DesignedEditController {
             return ResponseEntity.notFound().build();
         }
         Path path = designedEditService.outputPath(videoId, clipIndex);
+        if (!path.toFile().exists()) {
+            return ResponseEntity.notFound().build();
+        }
         Resource resource = new UrlResource(path.toUri());
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("video/mp4"))

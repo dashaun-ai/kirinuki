@@ -57,7 +57,7 @@ public class DashboardController {
     public String dashboard(@PathVariable UUID videoId, Model model) {
         VideoResponse video = videoService.findById(videoId);
         model.addAttribute("video", video);
-        if (video.status().ordinal() < PipelineStatus.READY_FOR_REVIEW.ordinal()) {
+        if (PIPELINE.contains(video.status())) {
             model.addAttribute("steps", pipelineSteps(video.status()));
             return "processing";
         }
@@ -80,21 +80,24 @@ public class DashboardController {
     }
 
     @PostMapping("/videos/{videoId}/dashboard/clips/{clipIndex}/approve")
-    public String approveClip(@PathVariable UUID videoId, @PathVariable int clipIndex) {
-        reviewService.decide(videoId, clipIndex, ReviewStatus.APPROVED);
+    public String approveClip(@PathVariable UUID videoId, @PathVariable int clipIndex,
+            @RequestParam(required = false) Long version) {
+        reviewService.decide(videoId, clipIndex, ReviewStatus.APPROVED, version);
         return redirect(videoId);
     }
 
     @PostMapping("/videos/{videoId}/dashboard/clips/{clipIndex}/reject")
-    public String rejectClip(@PathVariable UUID videoId, @PathVariable int clipIndex) {
-        reviewService.decide(videoId, clipIndex, ReviewStatus.REJECTED);
+    public String rejectClip(@PathVariable UUID videoId, @PathVariable int clipIndex,
+            @RequestParam(required = false) Long version) {
+        reviewService.decide(videoId, clipIndex, ReviewStatus.REJECTED, version);
         return redirect(videoId);
     }
 
     @PostMapping("/videos/{videoId}/dashboard/clips/{clipIndex}/regenerate")
     public String regenerate(@PathVariable UUID videoId, @PathVariable int clipIndex,
-            @RequestParam ContentField field, @RequestParam(required = false) String platform) {
-        reviewService.regenerate(videoId, clipIndex, new RegenerateFieldRequest(field, platform));
+            @RequestParam ContentField field, @RequestParam(required = false) String platform,
+            @RequestParam(required = false) Long version) {
+        reviewService.regenerate(videoId, clipIndex, new RegenerateFieldRequest(field, platform), version);
         return redirect(videoId);
     }
 
@@ -117,7 +120,7 @@ public class DashboardController {
     private static final List<PipelineStatus> PIPELINE = List.of(
             PipelineStatus.DOWNLOADING, PipelineStatus.MEDIA_PREPARATION, PipelineStatus.FEATURE_EXTRACTION,
             PipelineStatus.CANDIDATE_GENERATION, PipelineStatus.AI_ANALYSIS, PipelineStatus.CLIP_RENDERING,
-            PipelineStatus.CONTENT_GENERATION, PipelineStatus.EDIT_PLANNING, PipelineStatus.READY_FOR_REVIEW);
+            PipelineStatus.CONTENT_GENERATION, PipelineStatus.EDIT_PLANNING);
 
     private List<PipelineStep> pipelineSteps(PipelineStatus current) {
         List<PipelineStep> steps = new ArrayList<>();
@@ -145,7 +148,8 @@ public class DashboardController {
     }
 
     private EditClipContentRequest toRequest(ClipEditForm form) {
-        List<PlatformVariant> platforms = form.getPlatforms().stream()
+        List<PlatformEditForm> platformForms = form.getPlatforms() == null ? List.of() : form.getPlatforms();
+        List<PlatformVariant> platforms = platformForms.stream()
                 .map(platform -> new PlatformVariant(platform.getPlatform(), platform.getTitle(),
                         platform.getCaption(), splitCsv(platform.getHashtags()), platform.getCallToAction()))
                 .toList();

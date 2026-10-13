@@ -83,6 +83,16 @@ class VideoServiceTest {
     }
 
     @Test
+    void should_fail_when_a_concurrent_ingestion_wins_the_unique_constraint() {
+        stubSuccessfulIngest("dQw4w9WgXcQ");
+        when(videoRepository.existsByYoutubeId("dQw4w9WgXcQ")).thenReturn(false, true);
+        when(videoRepository.save(any(Video.class)))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("duplicate key"));
+
+        assertThatExceptionOfType(DuplicateVideoException.class).isThrownBy(() -> videoService.ingest(URL));
+    }
+
+    @Test
     void should_store_the_metadata_from_yt_dlp_when_a_video_is_ingested() {
         stubSuccessfulIngest("dQw4w9WgXcQ");
 

@@ -74,7 +74,11 @@ class EditPlanningStage implements PipelineStage {
         } catch (IOException exception) {
             throw new KirinukiException("Could not write edit plans to " + target, exception);
         }
-        designedEditService.queueAutomaticRenders(video, plans);
+    }
+
+    @Override
+    public void afterCommit(Video video) {
+        designedEditService.queueAutomaticRenders(video.getId());
     }
 
     private List<EditPlan> sourceOnlyPlans(Path scoredFile, Path transcriptFile) {

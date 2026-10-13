@@ -177,6 +177,19 @@ class CandidateScorerTest {
     }
 
     @Test
+    void should_fail_when_all_candidates_score_below_the_minimum() throws IOException {
+        Candidate weak = candidate(0, 0.0, 30.0);
+        when(scoreClient.score(weak, VIDEO_TITLE)).thenReturn(score(3, 3, 3, 3));
+        Path candidates = writeCandidates(List.of(weak));
+        CandidateScorer scorer = new CandidateScorer(
+                properties(Map.of("kirinuki.pipeline.scoring.min-score", 50)), objectMapper, scoreClient);
+
+        assertThatExceptionOfType(KirinukiException.class)
+                .isThrownBy(() -> scorer.score(candidates, directory.resolve("scored.json"), VIDEO_TITLE))
+                .withMessageContaining("All 1 candidates scored below the configured min-score of 50");
+    }
+
+    @Test
     void should_fail_when_every_candidate_fails_scoring() throws IOException {
         Path candidates = writeCandidates(List.of(candidate(0, 0.0, 30.0), candidate(1, 100.0, 130.0)));
         when(scoreClient.score(any(), eq(VIDEO_TITLE))).thenThrow(new KirinukiException("model unavailable"));

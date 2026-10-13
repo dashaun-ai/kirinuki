@@ -60,6 +60,12 @@ public class CandidateScorer {
                 .sorted(Comparator.comparingInt(ScoredCandidate::overallScore).reversed())
                 .toList();
 
+        if (byScore.isEmpty() && !scored.isEmpty()) {
+            throw new KirinukiException(
+                    "All %d candidates scored below the configured min-score of %d".formatted(scored.size(),
+                            properties.scoring().minScore()));
+        }
+
         List<ScoredCandidate> kept = new ArrayList<>();
         for (ScoredCandidate candidate : byScore) {
             if (kept.size() == properties.scoring().topClips()) {

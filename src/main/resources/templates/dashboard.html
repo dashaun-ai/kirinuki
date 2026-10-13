@@ -63,14 +63,17 @@
 
                 <div class="actions">
                     <form method="post" th:action="@{/videos/{v}/dashboard/clips/{c}/approve(v=${video.id},c=${clip.clipIndex})}">
+                        <input type="hidden" name="version" th:value="${clip.version}"/>
                         <button class="btn btn-good sm" type="submit">Approve</button></form>
                     <form method="post" th:action="@{/videos/{v}/dashboard/clips/{c}/reject(v=${video.id},c=${clip.clipIndex})}">
+                        <input type="hidden" name="version" th:value="${clip.version}"/>
                         <button class="btn btn-bad sm" type="submit">Reject</button></form>
                     <a class="btn btn-ghost sm" th:href="@{${clip.downloadUrl}}">Download</a>
                 </div>
 
                 <form method="post" class="regen"
                       th:action="@{/videos/{v}/dashboard/clips/{c}/regenerate(v=${video.id},c=${clip.clipIndex})}">
+                    <input type="hidden" name="version" th:value="${clip.version}"/>
                     <select class="mini" name="field" aria-label="Field to regenerate">
                         <option th:each="field : ${fields}" th:value="${field}" th:text="${field}"></option>
                     </select>

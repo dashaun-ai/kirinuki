@@ -52,7 +52,15 @@ public class VideoService {
 
         Video video = new Video(videoId, metadata.youtubeId(), url, metadata.title(), metadata.durationSeconds(),
                 metadata.uploader(), PipelineStatus.DOWNLOADING, Instant.now(), null);
-        VideoResponse response = toResponse(videoRepository.save(video));
+        try {
+            video = videoRepository.save(video);
+        } catch (org.springframework.dao.DataIntegrityViolationException exception) {
+            if (videoRepository.existsByYoutubeId(youtubeId)) {
+                throw new DuplicateVideoException(youtubeId);
+            }
+            throw exception;
+        }
+        VideoResponse response = toResponse(video);
         pipelineOrchestrator.startAsync(videoId);
         return response;
     }

@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.springframework.data.repository.ListCrudRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface ClipReviewRepository extends ListCrudRepository<ClipReview, UUID> {
+public interface ClipReviewRepository extends JpaRepository<ClipReview, UUID> {
 
     List<ClipReview> findByVideoIdOrderByClipIndex(UUID videoId);
 

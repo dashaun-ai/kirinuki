@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
@@ -52,12 +53,13 @@ public class DesignedEditService {
         this.videoRepository = videoRepository;
     }
 
-    public void queueAutomaticRenders(Video video, List<EditPlan> plans) {
+    public void queueAutomaticRenders(UUID videoId) {
         KirinukiPipelineProperties.Edit edit = properties.edit();
         if (!edit.enabled() || !edit.autoRender()) {
             return;
         }
-        List<ScoredCandidate> scored = readScored(video.getId());
+        List<ScoredCandidate> scored = readScored(videoId);
+        Map<Integer, EditPlan> plansByIndex = readPlans(videoId);
         record IndexedScored(int clipIndex, ScoredCandidate scored) {
         }
         List<IndexedScored> top = new ArrayList<>();
@@ -68,8 +70,6 @@ public class DesignedEditService {
         if (top.size() > edit.topClips()) {
             top = top.subList(0, edit.topClips());
         }
-        Map<Integer, EditPlan> plansByIndex = plans.stream()
-                .collect(Collectors.toMap(EditPlan::clipIndex, plan -> plan));
 
         for (IndexedScored item : top) {
             int clipIndex = item.clipIndex();
@@ -77,10 +77,10 @@ public class DesignedEditService {
             if (plan == null) {
                 continue;
             }
-            if (repository.existsByVideoIdAndClipIndex(video.getId(), clipIndex)) {
+            if (repository.existsByVideoIdAndClipIndex(videoId, clipIndex)) {
                 continue;
             }
-            createAndStart(video.getId(), clipIndex, plan, item.scored());
+            createAndStart(videoId, clipIndex, plan, item.scored());
         }
     }
 
@@ -106,26 +106,37 @@ public class DesignedEditService {
         Instant now = Instant.now();
         DesignedEdit row = new DesignedEdit(UUID.randomUUID(), videoId, clipIndex, DesignedEditStatus.QUEUED, null,
                 null, now, now);
-        repository.save(row);
+        try {
+            repository.save(row);
+        } catch (DataIntegrityViolationException exception) {
+            log.warn("Designed edit for video {} clip {} already exists", videoId, clipIndex);
+            return;
+        }
         startRender(row, plan, scored);
     }
 
     private void startRender(DesignedEdit row, EditPlan plan, ScoredCandidate scored) {
-        try {
-            semaphore.acquire();
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            update(row, DesignedEditStatus.FAILED, "Render was interrupted");
-            return;
-        }
         Thread.ofVirtual().name("designed-edit-" + row.getVideoId() + "-" + row.getClipIndex()).start(() -> {
+            try {
+                semaphore.acquire();
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                update(row, DesignedEditStatus.FAILED, "Render was interrupted");
+                return;
+            }
             try {
                 if (!update(row, DesignedEditStatus.RENDERING, null)) {
                     return;
                 }
                 Path source = storageService.resolve(row.getVideoId().toString(), Artifacts.SOURCE);
                 Path transcript = storageService.resolve(row.getVideoId().toString(), Artifacts.TRANSCRIPT);
-                Path output = outputPath(row.getVideoId(), row.getClipIndex());
+                Path output = resolveOutputPath(row.getVideoId(), row.getClipIndex());
+                try {
+                    Files.createDirectories(output.getParent());
+                } catch (IOException exception) {
+                    throw new KirinukiException("Could not create designed output directory " + output.getParent(),
+                            exception);
+                }
                 String title = videoRepository.findById(row.getVideoId())
                         .map(Video::getTitle)
                         .orElse(null);
@@ -157,15 +168,14 @@ public class DesignedEditService {
     }
 
     public Path outputPath(UUID videoId, int clipIndex) {
-        Path dir = storageService.videoDirectory(videoId.toString())
+        return resolveOutputPath(videoId, clipIndex);
+    }
+
+    private Path resolveOutputPath(UUID videoId, int clipIndex) {
+        return storageService.videoDirectory(videoId.toString())
                 .resolve(Artifacts.DESIGNED_DIRECTORY)
-                .resolve("clip-" + clipIndex);
-        try {
-            Files.createDirectories(dir);
-        } catch (IOException exception) {
-            throw new KirinukiException("Could not create designed output directory " + dir, exception);
-        }
-        return dir.resolve("designed.mp4");
+                .resolve("clip-" + clipIndex)
+                .resolve("designed.mp4");
     }
 
     public boolean isReady(UUID videoId, int clipIndex) {

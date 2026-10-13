@@ -11,32 +11,43 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ProcessRunner {
 
-    public String run(String tool, List<String> command, Duration timeout) {
-        Process process = start(tool, command);
-        try (ExecutorService drains = Executors.newVirtualThreadPerTaskExecutor()) {
-            Future<String> standardOutput = drains.submit(() -> readFully(process.getInputStream()));
-            Future<String> errorOutput = drains.submit(() -> readFully(process.getErrorStream()));
+    private static final Logger log = LoggerFactory.getLogger(ProcessRunner.class);
 
-            if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-                kill(process);
+    public String run(String tool, List<String> command, Duration timeout) {
+        log.debug("Running {}: {}", tool, String.join(" ", command));
+        ExecutorService drains = Executors.newVirtualThreadPerTaskExecutor();
+        Process process = null;
+        try {
+            Process started = start(tool, command);
+            process = started;
+            Future<String> standardOutput = drains.submit(() -> readFully(started.getInputStream()));
+            Future<String> errorOutput = drains.submit(() -> readFully(started.getErrorStream()));
+
+            if (!started.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
                 throw new ExternalToolException(tool, "timed out after " + timeout);
             }
-            if (process.exitValue() != 0) {
+            if (started.exitValue() != 0) {
                 throw new ExternalToolException(tool,
-                        "exited with %d: %s".formatted(process.exitValue(), errorOutput.get().strip()));
+                        "exited with %d: %s".formatted(started.exitValue(), errorOutput.get().strip()));
             }
             return standardOutput.get();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            kill(process);
             throw new ExternalToolException(tool, "was interrupted", exception);
         } catch (ExecutionException exception) {
             throw new ExternalToolException(tool, "output could not be read", exception.getCause());
+        } finally {
+            if (process != null) {
+                kill(process);
+            }
+            drains.close();
         }
     }
 
@@ -47,7 +58,9 @@ public class ProcessRunner {
 
     private Process start(String tool, List<String> command) {
         try {
-            return new ProcessBuilder(command).start();
+            Process process = new ProcessBuilder(command).start();
+            process.getOutputStream().close();
+            return process;
         } catch (IOException exception) {
             throw new ToolNotAvailableException(tool, exception);
         }

@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +18,7 @@ import ai.dashaun.kirinuki.candidate.Word;
 import ai.dashaun.kirinuki.common.KirinukiException;
 import ai.dashaun.kirinuki.common.ProcessRunner;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.media.FfmpegClient;
 import ai.dashaun.kirinuki.render.SubtitleWriter;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
 
@@ -52,7 +54,7 @@ public class DesignedEditRenderer {
         double clipDuration = candidate.end() - candidate.start();
         List<Word> words = transcriptReader.readWords(transcript);
 
-        Path segmentsDir = output.getParent().resolve("segments");
+        Path segmentsDir = output.resolveSibling(output.getFileName().toString() + ".segments");
         createDirectory(segmentsDir);
 
         List<Path> segments = new ArrayList<>();
@@ -73,22 +75,19 @@ public class DesignedEditRenderer {
             String title, Path output) {
         double shotStart = clipStart + Math.max(0, shot.in());
         double shotEnd = clipStart + Math.min(shot.out(), clipDuration);
-        double duration = shotEnd - shotStart;
-        if (duration <= 0.1) {
-            duration = 0.1;
-        }
+        double duration = Math.max(0.1, shotEnd - shotStart);
+        shotEnd = shotStart + duration;
 
         log.info("Rendering shot block={} for output={}", shot.block(), output.getFileName());
         if (shot.block() == ShotBlock.SOURCE) {
-            renderSourceSegment(source, words, shotStart, shotEnd, shot, output);
+            renderSourceSegment(source, words, shotStart, shotEnd, duration, shot, output);
         } else {
             renderDesignedSegment(duration, shot, title, output);
         }
     }
 
-    private void renderSourceSegment(Path source, List<Word> words, double shotStart, double shotEnd, Shot shot,
-            Path output) {
-        double duration = shotEnd - shotStart;
+    private void renderSourceSegment(Path source, List<Word> words, double shotStart, double shotEnd, double duration,
+            Shot shot, Path output) {
         KirinukiPipelineProperties.Render render = properties.render();
         int width = render.width();
         int height = render.height();
@@ -107,16 +106,21 @@ public class DesignedEditRenderer {
         }
         filter.append(",pad=%d:%d:(ow-iw)/2:(oh-ih)/2".formatted(width * 2, height * 2));
         filter.append(",scale=%d:%d".formatted(width, height));
-        filter.append(",subtitles=%s".formatted(escapeFilterPath(subtitles)));
+        filter.append(",subtitles=%s".formatted(FfmpegClient.escapeFilterPath(subtitles)));
         if (shot.headline() != null && !shot.headline().isBlank()) {
-            filter.append(",drawtext=fontfile='%s':text='%s':x=(w-text_w)/2:y=140:fontsize=72:fontcolor=white:borderw=4:bordercolor=black"
-                    .formatted(fontfile(properties.edit().boldFontPath()), escapeDrawtext(shot.headline())));
+            String boldFont = fontfile(properties.edit().boldFontPath());
+            if (boldFont != null) {
+                filter.append(",drawtext=fontfile='%s':text='%s':x=(w-text_w)/2:y=140:fontsize=72:fontcolor=white:borderw=4:bordercolor=black"
+                        .formatted(FfmpegClient.escapeFilterPath(Path.of(boldFont)), escapeDrawtext(shot.headline())));
+            }
         }
         filter.append(",format=yuv420p");
 
         String binary = properties.media().binary();
         processRunner.run(binary, List.of(binary,
                 "-y",
+                "-hide_banner",
+                "-nostats",
                 "-ss", String.valueOf(shotStart),
                 "-t", String.valueOf(duration),
                 "-i", source.toString(),
@@ -125,6 +129,7 @@ public class DesignedEditRenderer {
                 "-preset", "veryfast",
                 "-crf", String.valueOf(render.crf()),
                 "-c:a", "aac",
+                "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
                 "-b:a", "128k",
                 "-ar", "48000",
                 "-r", "30",
@@ -145,7 +150,7 @@ public class DesignedEditRenderer {
         filter.append(drawtextPlain(HANDLE, 60, 38, "#a0a0a0", false));
 
         if (title != null && !title.isBlank()) {
-            String tag = truncate(title, 32).toUpperCase();
+            String tag = truncate(title, 32).toUpperCase(Locale.ROOT);
             filter.append(drawtextBox(tag, 120, 18, "white", ACCENT));
         }
 
@@ -179,7 +184,7 @@ public class DesignedEditRenderer {
         }
 
         if (shot.logos() != null && !shot.logos().isEmpty() && shot.block() == ShotBlock.LOGO_WALL) {
-            String logos = String.join("    ", shot.logos()).toUpperCase();
+            String logos = String.join("    ", shot.logos()).toUpperCase(Locale.ROOT);
             filter.append(drawtextWithFont(logos, height - 180, 48, "white", false, boldFontfile));
         }
 
@@ -190,6 +195,8 @@ public class DesignedEditRenderer {
         String binary = properties.media().binary();
         processRunner.run(binary, List.of(binary,
                 "-y",
+                "-hide_banner",
+                "-nostats",
                 "-f", "lavfi",
                 "-i", colorInput,
                 "-f", "lavfi",
@@ -223,7 +230,7 @@ public class DesignedEditRenderer {
         String escaped = escapeDrawtext(text);
         StringBuilder params = new StringBuilder();
         if (fontfile != null && !fontfile.isEmpty()) {
-            params.append("fontfile='").append(escapeFilterPath(Path.of(fontfile))).append("'");
+            params.append("fontfile='").append(FfmpegClient.escapeFilterPath(Path.of(fontfile))).append("'");
         } else {
             params.append("font='DejaVu Sans'");
         }
@@ -274,10 +281,6 @@ public class DesignedEditRenderer {
                 .replace("\n", " ");
     }
 
-    private String escapeFilterPath(Path path) {
-        return path.toAbsolutePath().toString().replace("\\", "/").replace(":", "\\:");
-    }
-
     private String fontfile(String configured) {
         if (configured != null && !configured.isBlank()) {
             Path path = Path.of(configured);
@@ -292,6 +295,8 @@ public class DesignedEditRenderer {
         String binary = properties.media().binary();
         processRunner.run(binary, List.of(binary,
                 "-y",
+                "-hide_banner",
+                "-nostats",
                 "-f", "concat",
                 "-safe", "0",
                 "-i", concatList.toString(),

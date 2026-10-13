@@ -17,6 +17,6 @@ kirinuki:
       max-tokens: 4096
     edit:
       enabled: true
-      plan-model: ${EDIT_PLAN_MODEL:${SEKISHO_MODEL:llama4:latest}}
+      plan-model: ${EDIT_PLAN_MODEL:${CHAT_MODEL:llama4:latest}}
       plan-temperature: 0.4
       plan-max-tokens: 4096

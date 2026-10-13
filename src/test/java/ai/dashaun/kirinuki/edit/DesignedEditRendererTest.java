@@ -38,7 +38,7 @@ class DesignedEditRendererTest {
                 null, null, null, null,
                 new KirinukiPipelineProperties.Render("blur-fill", 1080, 1920, 1.0, 28, "ultrafast", 3, "Arial", 78,
                         false, 200, java.time.Duration.ofMillis(400), java.time.Duration.ofMillis(600),
-                        java.time.Duration.ofMillis(1200), java.time.Duration.ofMinutes(5),
+                        java.time.Duration.ofMillis(1200), 30, java.time.Duration.ofMinutes(5),
                         new KirinukiPipelineProperties.Render.Reframe(3.0, 1.25, 480, 480, 8)),
                 null, null, null,
                 new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12,
