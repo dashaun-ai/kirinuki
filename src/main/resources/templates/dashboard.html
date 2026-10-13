@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Shippori+Mincho:wght@500&display=swap" rel="stylesheet"/>
     <link rel="stylesheet" th:href="@{/css/app.css}"/>
+    <script th:src="@{/js/theme.js}" defer></script>
+    <script>document.documentElement.dataset.theme = localStorage.getItem("kirinuki-theme") || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");</script>
 </head>
 <body>
 <header class="rev-top">
@@ -20,6 +22,7 @@
         <div class="dots" id="dots"></div>
         <span class="approved-count" id="approvedCount">—</span>
         <button class="btn btn-good" id="approveVideoBtn" disabled>Approve video &amp; resume</button>
+        <button class="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
     </div>
 </header>
 
