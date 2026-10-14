@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -201,7 +202,13 @@ public class ReviewService {
                 .map(clip -> new ClipReview(UUID.randomUUID(), videoId, clip.clipIndex(), ReviewStatus.PENDING,
                         writeContent(clip), now, now, null))
                 .toList();
-        clipReviewRepository.saveAll(rows);
+        try {
+            clipReviewRepository.saveAll(rows);
+        } catch (DataIntegrityViolationException exception) {
+            if (!clipReviewRepository.existsByVideoId(videoId)) {
+                throw exception;
+            }
+        }
     }
 
     private ClipReview save(UUID videoId, int clipIndex, ClipReview row) {

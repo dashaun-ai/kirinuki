@@ -69,7 +69,7 @@ class PipelineOrchestratorTest {
         orchestrator(download).advance(video.getId());
 
         assertThat(video.getStatus()).isEqualTo(PipelineStatus.MEDIA_PREPARATION);
-        verify(videoRepository, times(2)).save(video);
+        verify(videoRepository).save(video);
     }
 
     @Test
@@ -156,7 +156,7 @@ class PipelineOrchestratorTest {
         orchestrator(download).advance(video.getId());
 
         assertThat(video.getLastError()).isEqualTo("yt-dlp exited with 1");
-        verify(videoRepository, times(2)).save(video);
+        verify(videoRepository).save(video);
     }
 
     @Test
@@ -200,7 +200,7 @@ class PipelineOrchestratorTest {
         orchestrator(stage(PipelineStatus.DOWNLOADING, "source.mp4")).advance(video.getId());
 
         assertThat(video.getLastError()).isNull();
-        verify(videoRepository, times(2)).save(video);
+        verify(videoRepository).save(video);
     }
 
     @Test

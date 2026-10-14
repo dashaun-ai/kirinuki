@@ -68,10 +68,7 @@ public class PipelineOrchestrator {
     private void advanceInternal(UUID videoId) {
         try {
             Video video = videoRepository.findById(videoId).orElseThrow(() -> new VideoNotFoundException(videoId));
-            if (video.getLastError() != null) {
-                video.setLastError(null);
-                videoRepository.save(video);
-            }
+            video.setLastError(null);
             boolean ranAnyStage = false;
             for (List<PipelineStage> stages = stagesByStatus.get(video.getStatus()); stages != null;
                     stages = stagesByStatus.get(video.getStatus())) {
@@ -99,32 +96,27 @@ public class PipelineOrchestrator {
     }
 
     private void fanOut(List<PipelineStage> stages, Video video) {
-        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
-        var futures = stages.stream()
-                .map(stage -> executor.submit(() -> runArtifact(stage, video)))
-                .toList();
-        List<RuntimeException> failures = new ArrayList<>();
-        try {
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var futures = stages.stream()
+                    .map(stage -> executor.submit(() -> runArtifact(stage, video)))
+                    .toList();
+            List<RuntimeException> failures = new ArrayList<>();
             for (var future : futures) {
                 try {
                     future.get();
                 } catch (ExecutionException exception) {
                     failures.add(exception.getCause() instanceof RuntimeException runtime ? runtime
                             : new KirinukiException("Feature extraction failed", exception.getCause()));
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    failures.add(new KirinukiException("Feature extraction interrupted", exception));
                 }
             }
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            futures.forEach(future -> future.cancel(true));
-            executor.shutdownNow();
-            throw new KirinukiException("Feature extraction interrupted", exception);
-        } finally {
-            executor.close();
-        }
-        if (!failures.isEmpty()) {
-            RuntimeException failure = failures.getFirst();
-            failures.stream().skip(1).forEach(failure::addSuppressed);
-            throw failure;
+            if (!failures.isEmpty()) {
+                RuntimeException failure = failures.getFirst();
+                failures.stream().skip(1).forEach(failure::addSuppressed);
+                throw failure;
+            }
         }
     }
 
