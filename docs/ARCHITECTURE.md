@@ -12,9 +12,9 @@ Four decisions define the shape:
 
 1. **Source: YouTube** — the creator submits a video URL; **yt-dlp** pulls it (ADR-0003).
 2. **Orchestration: Spring-native** — a `PipelineOrchestrator` `@Service` drives the pipeline; no
-   external workflow engine (ADR-0002).
+   external workflow engine.
 3. **Storage: local filesystem** — a directory per video is the blackboard and the source of truth.
-4. **Inference: local** — nothing leaves the box (ADR-0001, amended 2026-08-26: the LLM
+4. **Inference: local** — nothing leaves the box (amended: the LLM
    is reached over an OpenAI-compatible endpoint, which Ollama serves at `:11434/v1`).
 
 ---
