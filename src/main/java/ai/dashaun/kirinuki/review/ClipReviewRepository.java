@@ -10,6 +10,8 @@ public interface ClipReviewRepository extends JpaRepository<ClipReview, UUID> {
 
     List<ClipReview> findByVideoIdOrderByClipIndex(UUID videoId);
 
+    List<ClipReview> findByVideoIdAndStatusOrderByClipIndex(UUID videoId, ReviewStatus status);
+
     Optional<ClipReview> findByVideoIdAndClipIndex(UUID videoId, int clipIndex);
 
     boolean existsByVideoId(UUID videoId);

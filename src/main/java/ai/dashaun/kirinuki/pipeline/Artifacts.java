@@ -17,6 +17,7 @@ public final class Artifacts {
     public static final String EDIT_PLANS = "edit-plans.json";
     public static final String CLIP_DIRECTORY = "clips";
     public static final String DESIGNED_DIRECTORY = "designed";
+    public static final String PUBLISHED = "published.json";
 
     private Artifacts() {
     }

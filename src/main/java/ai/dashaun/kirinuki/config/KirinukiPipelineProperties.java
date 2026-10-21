@@ -18,7 +18,8 @@ public record KirinukiPipelineProperties(
         @DefaultValue Content content,
         @DefaultValue Visual visual,
         @DefaultValue Screen screen,
-        @DefaultValue Edit edit) {
+        @DefaultValue Edit edit,
+        @DefaultValue Publish publish) {
 
     public record Scenes(
             @DefaultValue("0.4") double threshold) {
@@ -149,6 +150,11 @@ public record KirinukiPipelineProperties(
                 @DefaultValue("commons.wikimedia.org,upload.wikimedia.org,spring.io") List<String> allowedHosts,
                 @DefaultValue("30d") Duration cacheTtl) {
         }
+    }
+
+    public record Publish(
+            @DefaultValue("${user.home}/kirinuki-published") String directory,
+            @DefaultValue("true") boolean enabled) {
     }
 
 }

@@ -38,7 +38,8 @@ class EditPlannerTest {
                     null, null, null, null, null, null, null, null, null, null,
                     new ai.dashaun.kirinuki.config.KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest",
                             0.4, 2048, 0.8, 6, 12, 0.6, null, null, null, null, null, null, Renderer.HYBRID, true,
-                            Duration.ofMinutes(30))));
+                            Duration.ofMinutes(30)),
+                    null));
 
     private final EditPlanner planner = new EditPlanner(objectMapper, transcriptReader, themeCatalog, editPlanClient,
             validator);

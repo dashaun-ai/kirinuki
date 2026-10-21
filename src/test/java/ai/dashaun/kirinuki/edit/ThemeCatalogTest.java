@@ -17,7 +17,8 @@ class ThemeCatalogTest {
     private final KirinukiPipelineProperties properties = new KirinukiPipelineProperties(
             null, null, null, null, null, null, null, null, null, null,
             new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12,
-                    0.6, null, null, null, null, null, null, Renderer.HYBRID, true, Duration.ofMinutes(30)));
+                    0.6, null, null, null, null, null, null, Renderer.HYBRID, true, Duration.ofMinutes(30)),
+            null);
 
     private final ThemeCatalog catalog = new ThemeCatalog(properties);
 
@@ -59,7 +60,8 @@ class ThemeCatalogTest {
         KirinukiPipelineProperties missing = new KirinukiPipelineProperties(
                 null, null, null, null, null, null, null, null, null, null,
                 new KirinukiPipelineProperties.Edit(true, true, 3, "missing", "llama4:latest", 0.4, 2048, 0.8, 6, 12,
-                        0.6, null, null, null, null, null, null, Renderer.HYBRID, true, Duration.ofMinutes(30)));
+                        0.6, null, null, null, null, null, null, Renderer.HYBRID, true, Duration.ofMinutes(30)),
+                null);
 
         assertThatThrownBy(() -> new ThemeCatalog(missing)).isInstanceOf(KirinukiException.class);
     }

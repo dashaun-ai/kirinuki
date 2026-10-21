@@ -44,7 +44,8 @@ class DesignedEditRendererTest {
                         new KirinukiPipelineProperties.Render.Reframe(3.0, 1.25, 480, 480, 8, 0.05)),
                 null, null, null, null,
                 new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12,
-                        0.6, null, null, null, null, null, null, Renderer.HYBRID, true, Duration.ofMinutes(30)));
+                        0.6, null, null, null, null, null, null, Renderer.HYBRID, true, Duration.ofMinutes(30)),
+                null);
         JsonMapper objectMapper = new JsonMapper();
         SubtitleWriter subtitleWriter = new SubtitleWriter(properties);
         ProcessRunner processRunner = new ProcessRunner();
