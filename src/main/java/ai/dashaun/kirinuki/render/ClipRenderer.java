@@ -21,8 +21,9 @@ import ai.dashaun.kirinuki.media.MediaProfile;
 import ai.dashaun.kirinuki.media.Silence;
 import ai.dashaun.kirinuki.media.SpeakerSegment;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
-import ai.dashaun.kirinuki.vision.DominantSpeakerSelector;
 import ai.dashaun.kirinuki.vision.FaceTracks;
+import ai.dashaun.kirinuki.vision.RoiPlanner;
+import ai.dashaun.kirinuki.vision.ScreenAnalysis;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
@@ -36,42 +37,44 @@ public class ClipRenderer {
     private final SubtitleWriter subtitleWriter;
     private final FfmpegClient ffmpegClient;
     private final BoundaryRefiner boundaryRefiner;
-    private final DominantSpeakerSelector dominantSpeakerSelector;
+    private final RoiPlanner roiPlanner;
     private final KirinukiPipelineProperties properties;
 
     public ClipRenderer(ObjectMapper objectMapper, TranscriptReader transcriptReader, SubtitleWriter subtitleWriter,
-            FfmpegClient ffmpegClient, BoundaryRefiner boundaryRefiner,
-            DominantSpeakerSelector dominantSpeakerSelector, KirinukiPipelineProperties properties) {
+            FfmpegClient ffmpegClient, BoundaryRefiner boundaryRefiner, RoiPlanner roiPlanner,
+            KirinukiPipelineProperties properties) {
         this.objectMapper = objectMapper;
         this.transcriptReader = transcriptReader;
         this.subtitleWriter = subtitleWriter;
         this.ffmpegClient = ffmpegClient;
         this.boundaryRefiner = boundaryRefiner;
-        this.dominantSpeakerSelector = dominantSpeakerSelector;
+        this.roiPlanner = roiPlanner;
         this.properties = properties;
     }
 
     public void render(Path source, Path transcript, Path scoredFile, Path scenesFile, Path audioFeaturesFile,
-            Path facesFile, Path clipDirectory, Path target) {
+            Path facesFile, Path screenFile, Path clipDirectory, Path target) {
         List<ScoredCandidate> scored = readScored(scoredFile);
         List<Word> words = transcriptReader.readWords(transcript);
         List<Double> sceneCuts = readScenes(scenesFile);
         List<Silence> silences = readSilences(audioFeaturesFile);
         FaceTracks faces = readFaces(facesFile);
+        ScreenAnalysis screen = readScreen(screenFile);
         MediaProfile profile = ffmpegClient.probeMediaProfile(source);
         createDirectory(clipDirectory);
 
         List<Clip> clips = new ArrayList<>();
         for (int index = 0; index < scored.size(); index++) {
-            clips.add(renderOne(source, words, silences, sceneCuts, faces, profile, scored.get(index), index + 1,
-                    clipDirectory));
+            clips.add(renderOne(source, words, silences, sceneCuts, faces, screen, profile, scored.get(index),
+                    index + 1, clipDirectory));
         }
         log.info("Rendered {} clips into {}", clips.size(), clipDirectory);
         write(clips, target);
     }
 
     private Clip renderOne(Path source, List<Word> words, List<Silence> silences, List<Double> sceneCuts,
-            FaceTracks faces, MediaProfile profile, ScoredCandidate scored, int number, Path clipDirectory) {
+            FaceTracks faces, ScreenAnalysis screen, MediaProfile profile, ScoredCandidate scored, int number,
+            Path clipDirectory) {
         var candidate = scored.candidate();
         BoundaryRefiner.Bounds bounds = boundaryRefiner.refine(candidate, words, silences, sceneCuts);
         double start = bounds.start();
@@ -86,7 +89,7 @@ public class ClipRenderer {
         }
 
         subtitleWriter.write(words, start, end, subtitles);
-        FramingPlan plan = framingPlan(faces, words, start, end);
+        FramingPlan plan = framingPlan(screen, faces, words, start, end, profile);
         Path part = clipDirectory.resolve("clip-%d.part.mp4".formatted(number));
         ffmpegClient.renderVertical(source, start, end - start, subtitles, part, plan, profile);
         commit(part, video);
@@ -104,24 +107,13 @@ public class ClipRenderer {
         }
     }
 
-    private FramingPlan framingPlan(FaceTracks faces, List<Word> words, double start, double end) {
+    private FramingPlan framingPlan(ScreenAnalysis screen, FaceTracks faces, List<Word> words, double start,
+            double end, MediaProfile profile) {
         String framing = properties.render().framing();
-        if (faces.tracks().isEmpty()) {
+        if ("blur-fill".equals(framing)) {
             return null;
         }
-        if ("active-speaker".equals(framing)) {
-            return dominantSpeakerSelector.select(faces.tracks(), words, start, end,
-                    faces.frameWidth(), faces.frameHeight(), properties.render().reframe())
-                    .map(region -> FramingPlan.single(region.width(), region.height(),
-                            new SpeakerSegment(start, end, region.x(), region.y())))
-                    .orElse(null);
-        }
-        if ("follow-speaker".equals(framing)) {
-            return dominantSpeakerSelector.plan(faces.tracks(), words, start, end,
-                    faces.frameWidth(), faces.frameHeight(), properties.render().reframe())
-                    .orElse(null);
-        }
-        return null;
+        return roiPlanner.plan(screen, faces, words, start, end, profile, properties).orElse(null);
     }
 
     private List<Double> readScenes(Path scenesFile) {
@@ -156,6 +148,18 @@ public class ClipRenderer {
         } catch (IOException exception) {
             log.warn("Could not read faces {}, continuing without reframing", facesFile, exception);
             return FaceTracks.empty();
+        }
+    }
+
+    private ScreenAnalysis readScreen(Path screenFile) {
+        if (!Files.exists(screenFile)) {
+            return ScreenAnalysis.empty();
+        }
+        try {
+            return objectMapper.readValue(Files.readString(screenFile), ScreenAnalysis.class);
+        } catch (IOException exception) {
+            log.warn("Could not read screen analysis {}, continuing without ROI framing", screenFile, exception);
+            return ScreenAnalysis.empty();
         }
     }
 

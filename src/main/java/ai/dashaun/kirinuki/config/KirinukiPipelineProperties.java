@@ -92,7 +92,8 @@ public record KirinukiPipelineProperties(
                 @DefaultValue("1.25") double aspect,
                 @DefaultValue("480") int minWidth,
                 @DefaultValue("480") int minHeight,
-                @DefaultValue("8") double minSegmentSeconds) {
+                @DefaultValue("8") double minSegmentSeconds,
+                @DefaultValue("0.05") double codeMargin) {
         }
     }
 

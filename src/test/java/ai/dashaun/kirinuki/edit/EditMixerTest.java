@@ -35,7 +35,7 @@ class EditMixerTest {
                 new KirinukiPipelineProperties.Render("blur-fill", 480, 270, 1.0, 28, "ultrafast", 3, "Arial", 78,
                         false, 200, Duration.ofMillis(400), Duration.ofMillis(600),
                         Duration.ofMillis(1200), 30, Duration.ofMinutes(5),
-                        new KirinukiPipelineProperties.Render.Reframe(3.0, 1.25, 480, 480, 8)),
+                        new KirinukiPipelineProperties.Render.Reframe(3.0, 1.25, 480, 480, 8, 0.05)),
                 null, null, null, null,
                 new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12,
                         0.6, null, null, null, null, null, null, Renderer.HYBRID, true, Duration.ofMinutes(30)));
