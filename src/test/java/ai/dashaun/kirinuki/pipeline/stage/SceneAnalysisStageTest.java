@@ -1,6 +1,7 @@
 package ai.dashaun.kirinuki.pipeline.stage;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -16,6 +18,7 @@ import org.springframework.boot.context.properties.source.MapConfigurationProper
 
 import ai.dashaun.kirinuki.candidate.TranscriptReader;
 import ai.dashaun.kirinuki.common.ProcessRunner;
+import ai.dashaun.kirinuki.common.ToolNotAvailableException;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 import ai.dashaun.kirinuki.config.KirinukiStorageProperties;
 import ai.dashaun.kirinuki.pipeline.Artifacts;
@@ -37,9 +40,16 @@ class SceneAnalysisStageTest {
 
     private final ProcessRunner processRunner = new ProcessRunner();
     private final JsonMapper objectMapper = new JsonMapper();
+    private Path source;
+
+    @BeforeEach
+    void setUp() {
+        source = createTestVideo(8);
+    }
 
     @Test
     void should_combine_faces_transcript_and_screen_analysis_into_scene_json() throws Exception {
+        assumeTrue(source != null && Files.exists(source), "ffmpeg not available");
         String videoId = UUID.randomUUID().toString();
         StorageService storageService = new StorageService(new KirinukiStorageProperties(tempDir));
         ScreenAnalyzer screenAnalyzer = new ScreenAnalyzer(processRunner, properties(), objectMapper);
@@ -66,7 +76,7 @@ class SceneAnalysisStageTest {
 
     private void writeSource(StorageService storageService, String videoId) throws Exception {
         Path target = storageService.prepareFor(videoId, Artifacts.SOURCE);
-        createTestVideo(target, 8);
+        Files.copy(source, target);
     }
 
     private void writeFaces(StorageService storageService, String videoId) throws Exception {
@@ -87,26 +97,32 @@ class SceneAnalysisStageTest {
         storageService.commit(videoId, Artifacts.TRANSCRIPT);
     }
 
-    private void createTestVideo(Path target, int durationSeconds) throws Exception {
+    private Path createTestVideo(int durationSeconds) {
+        Path target = tempDir.resolve("source.mp4");
         String text = "public class Hello {\\n  public static void main(String[] args) {\\n    System.out.println(\"hi\");\\n  }\\n}";
-        processRunner.run("ffmpeg", List.of("ffmpeg",
-                "-y",
-                "-hide_banner",
-                "-nostats",
-                "-f", "lavfi",
-                "-i", "color=c=white:s=1280x720:d=%d".formatted(durationSeconds),
-                "-f", "lavfi",
-                "-i", "anullsrc=channel_layout=mono:sample_rate=48000",
-                "-t", String.valueOf(durationSeconds),
-                "-vf", ("drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf:" +
-                        "text='%s':x=140:y=80:fontsize=28:fontcolor=black:line_spacing=10," +
-                        "format=yuv420p").formatted(text),
-                "-c:v", "libx264",
-                "-preset", "ultrafast",
-                "-crf", "23",
-                "-c:a", "aac",
-                "-shortest",
-                target.toString()), java.time.Duration.ofMinutes(2));
+        try {
+            processRunner.run("ffmpeg", List.of("ffmpeg",
+                    "-y",
+                    "-hide_banner",
+                    "-nostats",
+                    "-f", "lavfi",
+                    "-i", "color=c=white:s=1280x720:d=%d".formatted(durationSeconds),
+                    "-f", "lavfi",
+                    "-i", "anullsrc=channel_layout=mono:sample_rate=48000",
+                    "-t", String.valueOf(durationSeconds),
+                    "-vf", ("drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf:" +
+                            "text='%s':x=140:y=80:fontsize=28:fontcolor=black:line_spacing=10," +
+                            "format=yuv420p").formatted(text),
+                    "-c:v", "libx264",
+                    "-preset", "ultrafast",
+                    "-crf", "23",
+                    "-c:a", "aac",
+                    "-shortest",
+                    target.toString()), java.time.Duration.ofMinutes(2));
+            return target;
+        } catch (ToolNotAvailableException exception) {
+            return null;
+        }
     }
 
     private KirinukiPipelineProperties properties() {
