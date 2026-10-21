@@ -13,7 +13,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.content.LinkedInVariant;
 import ai.dashaun.kirinuki.content.PlatformVariant;
+import ai.dashaun.kirinuki.content.TikTokVariant;
+import ai.dashaun.kirinuki.content.XVariant;
+import ai.dashaun.kirinuki.content.YouTubeVariant;
 import ai.dashaun.kirinuki.edit.DesignedEditService;
 import ai.dashaun.kirinuki.edit.DesignedEditStatus;
 import ai.dashaun.kirinuki.pipeline.PipelineStatus;
@@ -157,12 +161,24 @@ public class DashboardController {
 
     private EditClipContentRequest toRequest(ClipEditForm form) {
         List<PlatformEditForm> platformForms = form.getPlatforms() == null ? List.of() : form.getPlatforms();
-        List<PlatformVariant> platforms = platformForms.stream()
-                .map(platform -> new PlatformVariant(platform.getPlatform(), platform.getTitle(),
-                        platform.getCaption(), splitCsv(platform.getHashtags()), platform.getCallToAction()))
-                .toList();
+        List<PlatformVariant> platforms = platformForms.stream().map(this::toVariant).toList();
         return new EditClipContentRequest(form.getVersion(), form.getSummary(), splitCsv(form.getKeywords()),
                 splitCsv(form.getTags()), platforms);
+    }
+
+    private PlatformVariant toVariant(PlatformEditForm form) {
+        String platform = form.getPlatform();
+        return switch (form.getShape() == null ? "" : form.getShape().toLowerCase()) {
+            case "x" -> new XVariant(platform, form.getTweet(), form.getThreadSuggestion(),
+                    splitCsv(form.getHashtags()));
+            case "youtube" -> new YouTubeVariant(platform, form.getTitle(), form.getDescription(),
+                    splitCsv(form.getSeoTags()));
+            case "linkedin" -> new LinkedInVariant(platform, form.getPost(), form.getCarouselHook(),
+                    splitCsv(form.getHashtags()), form.getCallToAction());
+            case "tiktok" -> new TikTokVariant(platform, form.getCaption(), form.getHookText(),
+                    splitCsv(form.getHashtags()));
+            default -> new TikTokVariant(platform, form.getCaption(), form.getHookText(), splitCsv(form.getHashtags()));
+        };
     }
 
     private List<String> splitCsv(String value) {

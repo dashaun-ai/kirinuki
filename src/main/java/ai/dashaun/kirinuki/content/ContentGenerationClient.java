@@ -32,19 +32,33 @@ public class ContentGenerationClient {
             - tags: 3-6 short lowercase hashtag words, without the leading '#'.
             - platforms: one entry per platform you are asked for, each with:
                 - platform: the platform name exactly as given.
-                - title: a clear, compelling headline (for YouTube this is the video title).
-                - caption: the post body tuned to that platform.
-                  For TikTok, Reels and Shorts: write 6-10 sentences. Open with a hook that calls out a
-                  common mistake or bold claim. Explain the value of the video. List key topics covered
-                  using bullet points. Close with a call to action or engagement question.
-                  For LinkedIn: write 8-12 sentences in a professional but conversational tone. Open with
-                  an insight or problem statement. Provide context on why this matters. List what the video
-                  covers with bullet points. End with a question asking the reader about their experience.
-                  For X: keep it punchy and under 280 characters. One strong hook line.
-                  For YouTube: write a full multi-paragraph description. Open with a hook paragraph. List
-                  topics covered with bullet points. Close with a call to action and engagement question.
+                - shape: one of x, youtube, linkedin, tiktok. Use tiktok for TikTok, Shorts and Reels.
+
+                For shape "x":
+                - tweet: a punchy post under 280 characters. One strong hook line.
+                - threadSuggestion: a follow-up post that expands the idea.
                 - hashtags: 3-6 lowercase hashtag words, without the leading '#'.
-                - callToAction: a short call to action (mainly for LinkedIn), or an empty string.
+
+                For shape "youtube":
+                - title: a clear, compelling video title.
+                - description: a full multi-paragraph description. Open with a hook paragraph. List
+                  topics covered with bullet points. Close with a call to action and engagement question.
+                - seoTags: 3-6 lowercase search tags, without the leading '#'.
+
+                For shape "linkedin":
+                - post: 8-12 sentences in a professional but conversational tone. Open with an insight or
+                  problem statement. Provide context on why this matters. List what the video covers with
+                  bullet points. End with a question asking the reader about their experience.
+                - carouselHook: a short hook for a carousel slide.
+                - hashtags: 3-6 lowercase hashtag words, without the leading '#'.
+                - callToAction: a short call to action.
+
+                For shape "tiktok":
+                - caption: 6-10 sentences. Open with a hook that calls out a common mistake or bold claim.
+                  Explain the value of the video. List key topics covered using bullet points. Close with a
+                  call to action or engagement question.
+                - hookText: a one-line hook overlay for the video.
+                - hashtags: 3-6 lowercase hashtag words, without the leading '#'.
 
             Keep it specific to the actual content. Do not invent facts that are not in the transcript.
             """;

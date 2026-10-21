@@ -165,6 +165,51 @@
             <span class="track"><span style="width:${value * 10}%"></span></span><b>${value}/10</b></div>`;
     }
 
+    function platformReadFields(platform) {
+        if (!platform) return "";
+        const name = esc(platform.platform);
+        const tagChip = (items, tag) => (items || []).map(h => `<span class="chip${tag ? " tag" : ""}">${tag ? "#" : ""}${esc(h)}</span>`).join("");
+        if (platform.shape === "x") {
+            return `
+            <div class="field-label">Tweet — ${name} <button class="regen" data-regen="TWEET" title="Regenerate tweet">⟳</button></div>
+            <div class="field-value">${esc(platform.tweet)}</div>
+            <div class="field-label">Thread suggestion <button class="regen" data-regen="THREAD_SUGGESTION" title="Regenerate thread suggestion">⟳</button></div>
+            <div class="field-value">${esc(platform.threadSuggestion)}</div>
+            <div class="field-label">Hashtags <button class="regen" data-regen="HASHTAGS" title="Regenerate hashtags">⟳</button></div>
+            <div class="chips">${tagChip(platform.hashtags, true)}</div>`;
+        }
+        if (platform.shape === "youtube") {
+            return `
+            <div class="field-label">Title — ${name} <button class="regen" data-regen="TITLE" title="Regenerate title">⟳</button></div>
+            <div class="field-value title-value">${esc(platform.title)}</div>
+            <div class="field-label">Description <button class="regen" data-regen="DESCRIPTION" title="Regenerate description">⟳</button></div>
+            <div class="field-value">${esc(platform.description)}</div>
+            <div class="field-label">SEO tags <button class="regen" data-regen="SEO_TAGS" title="Regenerate SEO tags">⟳</button></div>
+            <div class="chips">${tagChip(platform.seoTags, false)}</div>`;
+        }
+        if (platform.shape === "linkedin") {
+            return `
+            <div class="field-label">Post — ${name} <button class="regen" data-regen="POST" title="Regenerate post">⟳</button></div>
+            <div class="field-value">${esc(platform.post)}</div>
+            <div class="field-label">Carousel hook <button class="regen" data-regen="CAROUSEL_HOOK" title="Regenerate carousel hook">⟳</button></div>
+            <div class="field-value">${esc(platform.carouselHook)}</div>
+            <div class="field-label">Hashtags <button class="regen" data-regen="HASHTAGS" title="Regenerate hashtags">⟳</button></div>
+            <div class="chips">${tagChip(platform.hashtags, true)}</div>
+            <div class="field-label">Call to action <button class="regen" data-regen="CALL_TO_ACTION" title="Regenerate call to action">⟳</button></div>
+            <div class="field-value">${esc(platform.callToAction)}</div>`;
+        }
+        if (platform.shape === "tiktok") {
+            return `
+            <div class="field-label">Caption — ${name} <button class="regen" data-regen="CAPTION" title="Regenerate caption">⟳</button></div>
+            <div class="field-value">${esc(platform.caption)}</div>
+            <div class="field-label">Hook text <button class="regen" data-regen="HOOK_TEXT" title="Regenerate hook text">⟳</button></div>
+            <div class="field-value">${esc(platform.hookText)}</div>
+            <div class="field-label">Hashtags <button class="regen" data-regen="HASHTAGS" title="Regenerate hashtags">⟳</button></div>
+            <div class="chips">${tagChip(platform.hashtags, true)}</div>`;
+        }
+        return "";
+    }
+
     function readMode(clip) {
         const platform = clip.platforms[state.activePlatform];
         const tabs = clip.platforms.map((p, i) =>
@@ -182,20 +227,53 @@
                 <button class="regen" data-regen="KEYWORDS" title="Regenerate keywords">⟳</button></div>
             <div class="chips">${(clip.keywords || []).map(k => `<span class="chip">${esc(k)}</span>`).join("")}</div>
             ${clip.platforms.length ? `<div class="ptabs">${tabs}</div>` : ""}
-            ${platform ? `
-            <div class="field-label">Title — ${esc(platform.platform)}
-                <button class="regen" data-regen="TITLE" title="Regenerate title">⟳</button></div>
-            <div class="field-value title-value">${esc(platform.title)}</div>
-            <div class="field-label">Caption
-                <button class="regen" data-regen="CAPTION" title="Regenerate caption">⟳</button></div>
-            <div class="field-value">${esc(platform.caption)}</div>
-            <div class="field-label">Hashtags
-                <button class="regen" data-regen="HASHTAGS" title="Regenerate hashtags">⟳</button></div>
-            <div class="chips">${(platform.hashtags || []).map(h => `<span class="chip tag">#${esc(h)}</span>`).join("")}</div>
-            <div class="field-label">Call to action
-                <button class="regen" data-regen="CALL_TO_ACTION" title="Regenerate call to action">⟳</button></div>
-            <div class="field-value">${esc(platform.callToAction)}</div>` : ""}
+            ${platformReadFields(platform)}
         </div>`;
+    }
+
+    function platformEditFields(platform) {
+        if (!platform) return "";
+        const name = esc(platform.platform);
+        const tagsInput = items => esc((items || []).map(h => "#" + h).join(" "));
+        if (platform.shape === "x") {
+            return `
+            <div class="field-label">Tweet — ${name}</div>
+            <textarea id="f-tweet" rows="3">${esc(platform.tweet)}</textarea>
+            <div class="field-label">Thread suggestion</div>
+            <textarea id="f-thread" rows="2">${esc(platform.threadSuggestion)}</textarea>
+            <div class="field-label">Hashtags</div>
+            <input id="f-hashtags" value="${tagsInput(platform.hashtags)}"/>`;
+        }
+        if (platform.shape === "youtube") {
+            return `
+            <div class="field-label">Title — ${name}</div>
+            <input id="f-title" value="${esc(platform.title)}"/>
+            <div class="field-label">Description</div>
+            <textarea id="f-description" rows="5">${esc(platform.description)}</textarea>
+            <div class="field-label">SEO tags</div>
+            <input id="f-seoTags" value="${tagsInput(platform.seoTags)}"/>`;
+        }
+        if (platform.shape === "linkedin") {
+            return `
+            <div class="field-label">Post — ${name}</div>
+            <textarea id="f-post" rows="5">${esc(platform.post)}</textarea>
+            <div class="field-label">Carousel hook</div>
+            <input id="f-carouselHook" value="${esc(platform.carouselHook)}"/>
+            <div class="field-label">Hashtags</div>
+            <input id="f-hashtags" value="${tagsInput(platform.hashtags)}"/>
+            <div class="field-label">Call to action</div>
+            <input id="f-cta" value="${esc(platform.callToAction)}"/>`;
+        }
+        if (platform.shape === "tiktok") {
+            return `
+            <div class="field-label">Caption — ${name}</div>
+            <textarea id="f-caption" rows="5">${esc(platform.caption)}</textarea>
+            <div class="field-label">Hook text</div>
+            <input id="f-hookText" value="${esc(platform.hookText)}"/>
+            <div class="field-label">Hashtags</div>
+            <input id="f-hashtags" value="${tagsInput(platform.hashtags)}"/>`;
+        }
+        return "";
     }
 
     function editMode(clip) {
@@ -215,15 +293,7 @@
             <div class="field-label">Tags</div>
             <input id="f-tags" value="${esc((clip.tags || []).join(", "))}"/>
             ${clip.platforms.length ? `<div class="ptabs">${tabs}</div>` : ""}
-            ${platform ? `
-            <div class="field-label">Title — ${esc(platform.platform)}</div>
-            <input id="f-title" value="${esc(platform.title)}"/>
-            <div class="field-label">Caption</div>
-            <textarea id="f-caption" rows="3">${esc(platform.caption)}</textarea>
-            <div class="field-label">Hashtags</div>
-            <input id="f-hashtags" value="${esc((platform.hashtags || []).map(h => "#" + h).join(" "))}"/>
-            <div class="field-label">Call to action</div>
-            <input id="f-cta" value="${esc(platform.callToAction)}"/>` : ""}
+            ${platformEditFields(platform)}
             <div class="edit-actions">
                 <button class="btn btn-primary" id="saveBtn">Save changes</button>
                 <button class="btn btn-ghost" id="cancelBtn">Cancel</button>
@@ -409,14 +479,26 @@
     async function saveEdit() {
         const clip = selected();
         const platforms = clip.platforms.map((p, i) => {
-            if (i !== state.activePlatform || !$("f-title")) return p;
-            return {
-                platform: p.platform,
-                title: $("f-title").value,
-                caption: $("f-caption").value,
-                hashtags: hashtags($("f-hashtags").value),
-                callToAction: $("f-cta").value
-            };
+            if (i !== state.activePlatform) return p;
+            const shape = p.shape;
+            const platform = p.platform;
+            if (shape === "x") {
+                return { shape, platform, tweet: $("f-tweet").value, threadSuggestion: $("f-thread").value,
+                    hashtags: hashtags($("f-hashtags").value) };
+            }
+            if (shape === "youtube") {
+                return { shape, platform, title: $("f-title").value, description: $("f-description").value,
+                    seoTags: hashtags($("f-seoTags").value) };
+            }
+            if (shape === "linkedin") {
+                return { shape, platform, post: $("f-post").value, carouselHook: $("f-carouselHook").value,
+                    hashtags: hashtags($("f-hashtags").value), callToAction: $("f-cta").value };
+            }
+            if (shape === "tiktok") {
+                return { shape, platform, caption: $("f-caption").value, hookText: $("f-hookText").value,
+                    hashtags: hashtags($("f-hashtags").value) };
+            }
+            return p;
         });
         try {
             const updated = await api("/videos/" + VIDEO_ID + "/review/" + clip.clipIndex, {
@@ -438,7 +520,8 @@
 
     async function regen(field, el) {
         const clip = selected();
-        const scoped = ["TITLE", "CAPTION", "HASHTAGS", "CALL_TO_ACTION"].includes(field);
+        const scoped = ["HASHTAGS", "TWEET", "THREAD_SUGGESTION", "TITLE", "DESCRIPTION", "SEO_TAGS", "POST",
+            "CAROUSEL_HOOK", "CALL_TO_ACTION", "CAPTION", "HOOK_TEXT"].includes(field);
         const platform = scoped && clip.platforms[state.activePlatform]
             ? clip.platforms[state.activePlatform].platform : null;
         el.classList.add("busy");

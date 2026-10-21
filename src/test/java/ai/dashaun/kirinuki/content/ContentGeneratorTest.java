@@ -95,7 +95,7 @@ class ContentGeneratorTest {
 
     private GeneratedContent generated() {
         return new GeneratedContent("what this clip teaches", List.of("spring boot"), List.of("java"),
-                List.of(new PlatformVariant("TikTok", "title", "caption", List.of("java"), "follow")));
+                List.of(new TikTokVariant("TikTok", "caption", "hook", List.of("java"))));
     }
 
     private ScoredCandidate scored(String text, List<String> suggestedPlatforms) {

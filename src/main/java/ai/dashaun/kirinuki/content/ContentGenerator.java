@@ -65,7 +65,17 @@ public class ContentGenerator {
 
     private ClipContent blank(int clipIndex, List<String> platforms) {
         return new ClipContent(clipIndex, "", List.of(), List.of(),
-                platforms.stream().map(platform -> new PlatformVariant(platform, "", "", List.of(), "")).toList());
+                platforms.stream().map(this::blankVariant).toList());
+    }
+
+    private PlatformVariant blankVariant(String platform) {
+        return switch (platform.toLowerCase()) {
+            case "x", "twitter" -> new XVariant(platform, "", "", List.of());
+            case "youtube" -> new YouTubeVariant(platform, "", "", List.of());
+            case "linkedin" -> new LinkedInVariant(platform, "", "", List.of(), "");
+            case "tiktok", "shorts", "reels" -> new TikTokVariant(platform, "", "", List.of());
+            default -> new TikTokVariant(platform, "", "", List.of());
+        };
     }
 
     private List<String> platformsFor(ScoredCandidate clip) {

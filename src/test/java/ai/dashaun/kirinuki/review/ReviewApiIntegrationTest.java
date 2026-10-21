@@ -26,6 +26,7 @@ import ai.dashaun.kirinuki.candidate.Candidate;
 import ai.dashaun.kirinuki.content.ClipContent;
 import ai.dashaun.kirinuki.content.ContentGenerationClient;
 import ai.dashaun.kirinuki.content.PlatformVariant;
+import ai.dashaun.kirinuki.content.TikTokVariant;
 import ai.dashaun.kirinuki.pipeline.Artifacts;
 import ai.dashaun.kirinuki.pipeline.PipelineOrchestrator;
 import ai.dashaun.kirinuki.pipeline.PipelineStatus;
@@ -327,7 +328,7 @@ class ReviewApiIntegrationTest extends AbstractIntegrationTest {
     private ClipContent content(int clipIndex) {
         return new ClipContent(clipIndex, "what clip %d teaches".formatted(clipIndex), List.of("spring boot"),
                 List.of("springboot"),
-                List.of(new PlatformVariant("TikTok", "tiktok title", "tiktok caption", List.of("java"), "")));
+                List.of(new TikTokVariant("TikTok", "tiktok caption", "tiktok hook", List.of("java"))));
     }
 
     private ScoredCandidate scored(int id, int overallScore, String text) {

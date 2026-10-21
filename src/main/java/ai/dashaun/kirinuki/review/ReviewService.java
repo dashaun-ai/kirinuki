@@ -22,7 +22,11 @@ import ai.dashaun.kirinuki.common.KirinukiException;
 import ai.dashaun.kirinuki.common.StaleClipReviewException;
 import ai.dashaun.kirinuki.content.ClipContent;
 import ai.dashaun.kirinuki.content.ContentGenerationClient;
+import ai.dashaun.kirinuki.content.LinkedInVariant;
 import ai.dashaun.kirinuki.content.PlatformVariant;
+import ai.dashaun.kirinuki.content.TikTokVariant;
+import ai.dashaun.kirinuki.content.XVariant;
+import ai.dashaun.kirinuki.content.YouTubeVariant;
 import ai.dashaun.kirinuki.edit.DesignedEdit;
 import ai.dashaun.kirinuki.edit.DesignedEditRepository;
 import ai.dashaun.kirinuki.edit.DesignedEditService;
@@ -159,26 +163,72 @@ public class ReviewService {
         if (index < 0) {
             throw new InvalidRegenerationException("Platform " + platform + " not found for this clip");
         }
-        PlatformVariant variant = platforms.get(index);
-        PlatformVariant regenerated = switch (request.field()) {
-            case TITLE -> new PlatformVariant(variant.platform(),
-                    contentClient.regenerateText(videoTitle, transcript, "the " + platform + " title"),
-                    variant.caption(), variant.hashtags(), variant.callToAction());
-            case CAPTION -> new PlatformVariant(variant.platform(), variant.title(),
-                    contentClient.regenerateText(videoTitle, transcript,
-                            "the " + platform + " caption (the post body tuned to " + platform + ")"),
-                    variant.hashtags(), variant.callToAction());
-            case HASHTAGS -> new PlatformVariant(variant.platform(), variant.title(), variant.caption(),
-                    contentClient.regenerateList(videoTitle, transcript,
-                            "the " + platform + " hashtags (3-6 lowercase words, without the leading '#')"),
-                    variant.callToAction());
-            case CALL_TO_ACTION -> new PlatformVariant(variant.platform(), variant.title(), variant.caption(),
-                    variant.hashtags(),
-                    contentClient.regenerateText(videoTitle, transcript, "the " + platform + " call to action"));
-            default -> throw new InvalidRegenerationException("Field " + request.field() + " is not a platform field");
-        };
+        PlatformVariant regenerated = regenerateVariant(platforms.get(index), request.field(), videoTitle, transcript);
         platforms.set(index, regenerated);
         return new ClipContent(content.clipIndex(), content.summary(), content.keywords(), content.tags(), platforms);
+    }
+
+    private PlatformVariant regenerateVariant(PlatformVariant variant, ContentField field, String videoTitle,
+            String transcript) {
+        String platform = variant.platform();
+        String instruction = "the " + platform + " ";
+        return switch (variant) {
+            case XVariant x -> switch (field) {
+                case TWEET -> new XVariant(platform,
+                        contentClient.regenerateText(videoTitle, transcript, instruction + "tweet"),
+                        x.threadSuggestion(), x.hashtags());
+                case THREAD_SUGGESTION -> new XVariant(platform, x.tweet(),
+                        contentClient.regenerateText(videoTitle, transcript, instruction + "thread suggestion"),
+                        x.hashtags());
+                case HASHTAGS -> new XVariant(platform, x.tweet(), x.threadSuggestion(),
+                        contentClient.regenerateList(videoTitle, transcript,
+                                instruction + "hashtags (3-6 lowercase words, without the leading '#')"));
+                default -> throw invalidFieldForPlatform(field, platform);
+            };
+            case YouTubeVariant y -> switch (field) {
+                case TITLE -> new YouTubeVariant(platform,
+                        contentClient.regenerateText(videoTitle, transcript, instruction + "title"),
+                        y.description(), y.seoTags());
+                case DESCRIPTION -> new YouTubeVariant(platform, y.title(),
+                        contentClient.regenerateText(videoTitle, transcript, instruction + "description"),
+                        y.seoTags());
+                case SEO_TAGS -> new YouTubeVariant(platform, y.title(), y.description(),
+                        contentClient.regenerateList(videoTitle, transcript,
+                                instruction + "SEO tags (3-6 lowercase words, without the leading '#')"));
+                default -> throw invalidFieldForPlatform(field, platform);
+            };
+            case LinkedInVariant l -> switch (field) {
+                case POST -> new LinkedInVariant(platform,
+                        contentClient.regenerateText(videoTitle, transcript, instruction + "post"),
+                        l.carouselHook(), l.hashtags(), l.callToAction());
+                case CAROUSEL_HOOK -> new LinkedInVariant(platform, l.post(),
+                        contentClient.regenerateText(videoTitle, transcript, instruction + "carousel hook"),
+                        l.hashtags(), l.callToAction());
+                case HASHTAGS -> new LinkedInVariant(platform, l.post(), l.carouselHook(),
+                        contentClient.regenerateList(videoTitle, transcript,
+                                instruction + "hashtags (3-6 lowercase words, without the leading '#')"),
+                        l.callToAction());
+                case CALL_TO_ACTION -> new LinkedInVariant(platform, l.post(), l.carouselHook(), l.hashtags(),
+                        contentClient.regenerateText(videoTitle, transcript, instruction + "call to action"));
+                default -> throw invalidFieldForPlatform(field, platform);
+            };
+            case TikTokVariant t -> switch (field) {
+                case CAPTION -> new TikTokVariant(platform,
+                        contentClient.regenerateText(videoTitle, transcript, instruction + "caption"),
+                        t.hookText(), t.hashtags());
+                case HOOK_TEXT -> new TikTokVariant(platform, t.caption(),
+                        contentClient.regenerateText(videoTitle, transcript, instruction + "hook text"),
+                        t.hashtags());
+                case HASHTAGS -> new TikTokVariant(platform, t.caption(), t.hookText(),
+                        contentClient.regenerateList(videoTitle, transcript,
+                                instruction + "hashtags (3-6 lowercase words, without the leading '#')"));
+                default -> throw invalidFieldForPlatform(field, platform);
+            };
+        };
+    }
+
+    private InvalidRegenerationException invalidFieldForPlatform(ContentField field, String platform) {
+        throw new InvalidRegenerationException("Field " + field + " is not valid for platform " + platform);
     }
 
     private int indexOfPlatform(List<PlatformVariant> platforms, String platform) {

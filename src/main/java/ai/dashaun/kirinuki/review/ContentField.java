@@ -4,10 +4,17 @@ public enum ContentField {
     SUMMARY(false),
     KEYWORDS(false),
     TAGS(false),
-    TITLE(true),
-    CAPTION(true),
     HASHTAGS(true),
-    CALL_TO_ACTION(true);
+    TWEET(true),
+    THREAD_SUGGESTION(true),
+    TITLE(true),
+    DESCRIPTION(true),
+    SEO_TAGS(true),
+    POST(true),
+    CAROUSEL_HOOK(true),
+    CALL_TO_ACTION(true),
+    CAPTION(true),
+    HOOK_TEXT(true);
 
     private final boolean platformScoped;
 

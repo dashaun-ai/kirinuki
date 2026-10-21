@@ -32,7 +32,10 @@ import ai.dashaun.kirinuki.common.InvalidRegenerationException;
 import ai.dashaun.kirinuki.common.StaleClipReviewException;
 import ai.dashaun.kirinuki.content.ClipContent;
 import ai.dashaun.kirinuki.content.ContentGenerationClient;
+import ai.dashaun.kirinuki.content.LinkedInVariant;
 import ai.dashaun.kirinuki.content.PlatformVariant;
+import ai.dashaun.kirinuki.content.TikTokVariant;
+import ai.dashaun.kirinuki.content.XVariant;
 import ai.dashaun.kirinuki.candidate.Candidate;
 import ai.dashaun.kirinuki.edit.DesignedEditRepository;
 import ai.dashaun.kirinuki.edit.DesignedEditService;
@@ -217,7 +220,7 @@ class ReviewServiceTest {
         stubRow(row(1, content()));
 
         ClipReviewResponse response = reviewService.edit(VIDEO_ID, 1, new EditClipContentRequest(0L, null, null, null,
-                List.of(new PlatformVariant("X", "x title", "x caption", List.of("java"), ""))));
+                List.of(new XVariant("X", "x tweet", "x thread", List.of("java")))));
 
         assertThat(response.platforms()).extracting(PlatformVariant::platform).containsExactly("X");
     }
@@ -277,19 +280,19 @@ class ReviewServiceTest {
                 new RegenerateFieldRequest(ContentField.CAPTION, "TikTok"), 0L);
 
         assertThat(response.platforms()).containsExactly(
-                new PlatformVariant("TikTok", "tiktok title", "a new caption", List.of("java"), ""),
-                new PlatformVariant("LinkedIn", "linkedin title", "linkedin caption", List.of("spring"), "follow"));
+                new TikTokVariant("TikTok", "a new caption", "tiktok hook", List.of("java")),
+                new LinkedInVariant("LinkedIn", "linkedin post", "linkedin carousel", List.of("spring"), "follow"));
     }
 
     @Test
     void should_match_the_platform_regardless_of_case() {
         stubRow(row(1, content()));
-        when(contentClient.regenerateText(eq(VIDEO_TITLE), anyString(), anyString())).thenReturn("a new title");
+        when(contentClient.regenerateText(eq(VIDEO_TITLE), anyString(), anyString())).thenReturn("a new caption");
 
         ClipReviewResponse response = reviewService.regenerate(VIDEO_ID, 1,
-                new RegenerateFieldRequest(ContentField.TITLE, "tiktok"), 0L);
+                new RegenerateFieldRequest(ContentField.CAPTION, "tiktok"), 0L);
 
-        assertThat(response.platforms().getFirst().title()).isEqualTo("a new title");
+        assertThat(((TikTokVariant) response.platforms().getFirst()).caption()).isEqualTo("a new caption");
     }
 
     @Test
@@ -301,7 +304,7 @@ class ReviewServiceTest {
         ClipReviewResponse response = reviewService.regenerate(VIDEO_ID, 1,
                 new RegenerateFieldRequest(ContentField.HASHTAGS, "TikTok"), 0L);
 
-        assertThat(response.platforms().getFirst().hashtags()).containsExactly("springboot", "java25");
+        assertThat(((TikTokVariant) response.platforms().getFirst()).hashtags()).containsExactly("springboot", "java25");
     }
 
     @Test
@@ -406,8 +409,8 @@ class ReviewServiceTest {
     private ClipContent content() {
         return new ClipContent(1, "what this video teaches", List.of("spring boot", "virtual threads"),
                 List.of("springboot", "java"),
-                List.of(new PlatformVariant("TikTok", "tiktok title", "tiktok caption", List.of("java"), ""),
-                        new PlatformVariant("LinkedIn", "linkedin title", "linkedin caption", List.of("spring"),
+                List.of(new TikTokVariant("TikTok", "tiktok caption", "tiktok hook", List.of("java")),
+                        new LinkedInVariant("LinkedIn", "linkedin post", "linkedin carousel", List.of("spring"),
                                 "follow")));
     }
 
