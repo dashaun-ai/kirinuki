@@ -17,6 +17,7 @@ public record KirinukiPipelineProperties(
         @DefaultValue Scoring scoring,
         @DefaultValue Content content,
         @DefaultValue Visual visual,
+        @DefaultValue Screen screen,
         @DefaultValue Edit edit) {
 
     public record Scenes(
@@ -28,6 +29,13 @@ public record KirinukiPipelineProperties(
             @DefaultValue("5s") Duration sampleInterval,
             @DefaultValue("0.6") double minConfidence,
             @DefaultValue("0.03") double minFaceScale) {
+    }
+
+    public record Screen(
+            @DefaultValue("true") boolean enabled,
+            @DefaultValue("2s") Duration interval,
+            @DefaultValue("1s") Duration minChangeGap,
+            @DefaultValue("10m") Duration timeout) {
     }
 
     public record Content(
@@ -122,6 +130,9 @@ public record KirinukiPipelineProperties(
             @DefaultValue("0.6") double maxDesignedRatio,
             @DefaultValue("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf") String fontPath,
             @DefaultValue("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf") String boldFontPath,
+            @DefaultValue("${user.home}/.kimi-code/plugins/managed/shenghua/skill") String kineticSkillDir,
+            @DefaultValue("${user.home}/.kimi-code/plugins/managed/shenghua/skill/examples/kits/northwind") String kineticKit,
+            @DefaultValue("kinetic") String kineticTemplate,
             @DefaultValue Assets assets) {
 
         public record Assets(

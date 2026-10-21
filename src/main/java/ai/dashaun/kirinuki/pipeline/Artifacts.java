@@ -8,6 +8,8 @@ public final class Artifacts {
     public static final String SCENES = "scenes.json";
     public static final String AUDIO_FEATURES = "audio-features.json";
     public static final String FACES = "faces.json";
+    public static final String SCREEN_ANALYSIS = "screen-analysis.json";
+    public static final String SCENE = "scene.json";
     public static final String CANDIDATES = "candidates.json";
     public static final String SCORED = "scored.json";
     public static final String CLIPS = "clips.json";

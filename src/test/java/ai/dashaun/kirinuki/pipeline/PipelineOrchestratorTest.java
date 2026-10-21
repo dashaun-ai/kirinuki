@@ -124,7 +124,7 @@ class PipelineOrchestratorTest {
 
         verify(scenes).run(video);
         verify(audio).run(video);
-        assertThat(video.getStatus()).isEqualTo(PipelineStatus.CANDIDATE_GENERATION);
+        assertThat(video.getStatus()).isEqualTo(PipelineStatus.SCENE_ANALYSIS);
     }
 
     @Test

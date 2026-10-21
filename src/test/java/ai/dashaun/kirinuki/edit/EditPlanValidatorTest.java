@@ -9,12 +9,17 @@ import org.junit.jupiter.api.Test;
 
 import ai.dashaun.kirinuki.candidate.Word;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.vision.Scene;
+import ai.dashaun.kirinuki.vision.SceneSpeaker;
+import ai.dashaun.kirinuki.vision.ScreenRegion;
+import ai.dashaun.kirinuki.vision.FaceTracks;
+import ai.dashaun.kirinuki.vision.SpeakerActivity;
 
 class EditPlanValidatorTest {
 
     private final KirinukiPipelineProperties properties = new KirinukiPipelineProperties(
-            null, null, null, null, null, null, null, null, null,
-            new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12, 0.6, null, null, null));
+            null, null, null, null, null, null, null, null, null, null,
+            new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12, 0.6, null, null, null, null, null, null));
 
     private final EditPlanValidator validator = new EditPlanValidator(properties);
 
@@ -22,7 +27,7 @@ class EditPlanValidatorTest {
     void should_fill_gap_with_source_when_shots_do_not_touch() {
         EditPlan plan = plan(shot(0, 2, ShotBlock.SLAM, "Virtual threads", null, null, null, null));
 
-        EditPlan result = validator.validateAndRepair(plan, 8, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 8, null, List.of());
 
         assertThat(result.shots().get(0).block()).isEqualTo(ShotBlock.SLAM);
         assertThat(result.shots().get(1).block()).isEqualTo(ShotBlock.SOURCE);
@@ -35,7 +40,7 @@ class EditPlanValidatorTest {
     void should_clamp_shots_to_clip_duration() {
         EditPlan plan = plan(shot(-1, 7, ShotBlock.SLAM, "Text", null, null, null, null));
 
-        EditPlan result = validator.validateAndRepair(plan, 5, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 5, null, List.of());
 
         assertThat(result.shots()).allMatch(s -> s.in() >= 0 && s.out() <= 5);
         assertThat(result.shots().get(0).in()).isEqualTo(0);
@@ -48,7 +53,7 @@ class EditPlanValidatorTest {
                 shot(2, 4, ShotBlock.HIGHLIGHT, "Two", "sub", null, null, null),
                 shot(4, 10, ShotBlock.SOURCE, null, null, null, null, null));
 
-        EditPlan result = validator.validateAndRepair(plan, 10, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 10, null, List.of());
 
         assertThat(result.shots().get(0).block()).isEqualTo(ShotBlock.SLAM);
         assertThat(result.shots().get(0).out()).isEqualTo(3);
@@ -60,7 +65,7 @@ class EditPlanValidatorTest {
     void should_drop_shots_shorter_than_minimum_duration() {
         EditPlan plan = plan(shot(0, 0.5, ShotBlock.SLAM, "Too short", null, null, null, null));
 
-        EditPlan result = validator.validateAndRepair(plan, 5, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 5, null, List.of());
 
         assertThat(result.shots()).allMatch(s -> s.block() != ShotBlock.SLAM);
     }
@@ -69,7 +74,7 @@ class EditPlanValidatorTest {
     void should_split_source_shots_longer_than_max_source_seconds() {
         EditPlan plan = plan(shot(0, 15, ShotBlock.SOURCE, null, null, null, null, null));
 
-        EditPlan result = validator.validateAndRepair(plan, 15, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 15, null, List.of());
 
         List<Shot> sourceShots = result.shots().stream().filter(s -> s.block() == ShotBlock.SOURCE).toList();
         assertThat(sourceShots).allMatch(s -> s.out() - s.in() <= 12);
@@ -79,7 +84,7 @@ class EditPlanValidatorTest {
     void should_convert_non_source_shots_longer_than_max_shot_seconds() {
         EditPlan plan = plan(shot(0, 8, ShotBlock.SLAM, "Long", null, null, null, null));
 
-        EditPlan result = validator.validateAndRepair(plan, 8, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 8, null, List.of());
 
         assertThat(result.shots().get(0).out() - result.shots().get(0).in()).isLessThanOrEqualTo(6);
     }
@@ -91,7 +96,7 @@ class EditPlanValidatorTest {
                 shot(3, 6, ShotBlock.HIGHLIGHT, "B", "sub", null, null, null),
                 shot(6, 10, ShotBlock.SOURCE, null, null, null, null, null));
 
-        EditPlan result = validator.validateAndRepair(plan, 10, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 10, null, List.of());
 
         double designed = result.shots().stream()
                 .filter(s -> s.block() != ShotBlock.SOURCE)
@@ -105,7 +110,7 @@ class EditPlanValidatorTest {
     void should_repair_slam_with_too_many_words_to_source() {
         EditPlan plan = plan(shot(0, 2, ShotBlock.SLAM, "This is way too many words", null, null, null, null));
 
-        EditPlan result = validator.validateAndRepair(plan, 5, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 5, null, List.of());
 
         assertThat(result.shots().get(0).block()).isEqualTo(ShotBlock.SOURCE);
     }
@@ -114,7 +119,7 @@ class EditPlanValidatorTest {
     void should_repair_highlight_missing_subline_to_source() {
         EditPlan plan = plan(shot(0, 2, ShotBlock.HIGHLIGHT, "Headline", null, null, null, null));
 
-        EditPlan result = validator.validateAndRepair(plan, 5, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 5, null, List.of());
 
         assertThat(result.shots().get(0).block()).isEqualTo(ShotBlock.SOURCE);
     }
@@ -124,7 +129,7 @@ class EditPlanValidatorTest {
         EditPlan plan = plan(shot(0, 2, ShotBlock.LOGO_WALL, null, null, null,
                 List.of("spring", "unknown-logo", "docker"), null));
 
-        EditPlan result = validator.validateAndRepair(plan, 5, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 5, null, List.of());
 
         assertThat(result.shots().get(0).logos()).containsExactly("spring", "docker");
     }
@@ -133,7 +138,7 @@ class EditPlanValidatorTest {
     void should_convert_logo_wall_with_no_known_logos_to_source() {
         EditPlan plan = plan(shot(0, 2, ShotBlock.LOGO_WALL, null, null, null, List.of("unknown"), null));
 
-        EditPlan result = validator.validateAndRepair(plan, 5, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 5, null, List.of());
 
         assertThat(result.shots().get(0).block()).isEqualTo(ShotBlock.SOURCE);
     }
@@ -142,7 +147,7 @@ class EditPlanValidatorTest {
     void should_force_last_shot_to_outro() {
         EditPlan plan = plan(shot(0, 2, ShotBlock.SOURCE, null, null, null, null, null));
 
-        EditPlan result = validator.validateAndRepair(plan, 5, List.of());
+        EditPlan result = validator.validateAndRepair(plan, 5, null, List.of());
 
         assertThat(result.shots().getLast().block()).isEqualTo(ShotBlock.OUTRO);
     }
@@ -153,7 +158,7 @@ class EditPlanValidatorTest {
                 List.of(new Emphasis("virtual", 1.2, EmphasisKind.PUNCH)));
         List<Word> words = List.of(new Word("hello", 0.5, 0.9), new Word("virtual", 1.4, 1.8));
 
-        EditPlan result = validator.validateAndRepair(plan, 5, words);
+        EditPlan result = validator.validateAndRepair(plan, 5, null, words);
 
         assertThat(result.emphasis()).hasSize(1);
         assertThat(result.emphasis().getFirst().at()).isEqualTo(1.4);
@@ -163,8 +168,52 @@ class EditPlanValidatorTest {
     void should_fail_when_repair_leaves_no_shots() {
         EditPlan plan = plan();
 
-        assertThatThrownBy(() -> validator.validateAndRepair(plan, 0, List.of()))
+        assertThatThrownBy(() -> validator.validateAndRepair(plan, 0, null, List.of()))
                 .isInstanceOf(InvalidEditPlanException.class);
+    }
+
+    @Test
+    void should_convert_code_shots_to_speaker_when_screen_has_no_code() {
+        EditPlan plan = plan(new Shot(0, 5, ShotBlock.CODE, null, null, List.of("line"), null, null, null, null,
+                ShotType.CODE, "A", null, null, null));
+        Scene scene = scene(false, List.of(new SceneSpeaker("A", "track-1")));
+
+        EditPlan result = validator.validateAndRepair(plan, 5, scene, List.of());
+
+        assertThat(result.shots().get(0).type()).isEqualTo(ShotType.SPEAKER);
+        assertThat(result.shots().get(0).block()).isEqualTo(ShotBlock.SOURCE);
+    }
+
+    @Test
+    void should_convert_kinetic_without_spec_to_speaker() {
+        EditPlan plan = plan(new Shot(0, 5, ShotBlock.SLAM, "Java", null, null, null, null, null, null,
+                ShotType.KINETIC, null, null, null, null));
+        Scene scene = scene(false, List.of());
+
+        EditPlan result = validator.validateAndRepair(plan, 5, scene, List.of());
+
+        assertThat(result.shots().get(0).type()).isEqualTo(ShotType.SPEAKER);
+        assertThat(result.shots().get(0).block()).isEqualTo(ShotBlock.SOURCE);
+    }
+
+    @Test
+    void should_balance_dominant_speaker() {
+        EditPlan plan = plan(
+                new Shot(0, 8, ShotBlock.SOURCE, null, null, null, null, null, null, null, ShotType.SPEAKER, "A",
+                        null, null, null),
+                new Shot(8, 10, ShotBlock.SOURCE, null, null, null, null, null, null, null, ShotType.SPEAKER, "B",
+                        null, null, null));
+        Scene scene = scene(false, List.of(new SceneSpeaker("A", "track-1"), new SceneSpeaker("B", "track-2")));
+
+        EditPlan result = validator.validateAndRepair(plan, 10, scene, List.of());
+
+        long speakerA = result.shots().stream().filter(s -> "A".equals(s.speaker())).count();
+        long speakerB = result.shots().stream().filter(s -> "B".equals(s.speaker())).count();
+        assertThat(speakerA).isLessThanOrEqualTo(speakerB + 1);
+    }
+
+    private Scene scene(boolean hasCode, List<SceneSpeaker> speakers) {
+        return new Scene(speakers, List.of(), new ScreenRegion(0, 0, 1, 1), List.of(), hasCode, FaceTracks.empty());
     }
 
     private EditPlan plan(Shot... shots) {
@@ -173,6 +222,7 @@ class EditPlanValidatorTest {
 
     private Shot shot(double in, double out, ShotBlock block, String headline, String subline, List<String> lines,
             List<String> logos, String imageQuery) {
-        return new Shot(in, out, block, headline, subline, lines, logos, imageQuery, null, null);
+        return new Shot(in, out, block, headline, subline, lines, logos, imageQuery, null, null, null, null, null,
+                null, null);
     }
 }

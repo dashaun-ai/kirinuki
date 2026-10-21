@@ -61,9 +61,10 @@ class EditPlanningStageIntegrationTest extends AbstractIntegrationTest {
         writeContent(video.getId());
         writeScored(video.getId());
         writeTranscript(video.getId());
-        when(editPlanClient.plan(anyString(), anyString(), anyDouble(), anyList(), anyList()))
+        when(editPlanClient.plan(anyString(), anyString(), anyDouble(), any(), anyList(), anyList()))
                 .thenReturn(new EditPlan(1, "spring",
-                        List.of(new Shot(0, 5, ShotBlock.SOURCE, null, null, null, null, null, null, null)), List.of()));
+                        List.of(new Shot(0, 5, ShotBlock.SOURCE, null, null, null, null, null, null, null, null, null,
+                                null, null, null)), List.of()));
 
         pipelineOrchestrator.advance(video.getId());
 
@@ -86,7 +87,7 @@ class EditPlanningStageIntegrationTest extends AbstractIntegrationTest {
         writeContent(video.getId());
         writeScored(video.getId());
         writeTranscript(video.getId());
-        when(editPlanClient.plan(anyString(), anyString(), anyDouble(), anyList(), anyList()))
+        when(editPlanClient.plan(anyString(), anyString(), anyDouble(), any(), anyList(), anyList()))
                 .thenThrow(new RuntimeException("model unavailable"));
 
         pipelineOrchestrator.advance(video.getId());

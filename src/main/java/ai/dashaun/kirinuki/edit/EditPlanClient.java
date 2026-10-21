@@ -9,6 +9,7 @@ import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Component;
 
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.vision.Scene;
 
 @Component
 public class EditPlanClient {
@@ -16,7 +17,10 @@ public class EditPlanClient {
     private static final String SYSTEM = """
             You are a video editor planning a short-form tech clip. The speaker's original footage is the spine.
             Your job is to propose a paced edit plan: a sequence of shots that cut in around the footage when
-            the transcript calls for emphasis, and default to showing the speaker's screen the rest of the time.
+            the transcript calls for emphasis, and default to showing the speaker the rest of the time.
+
+            You are given a scene analysis that tells you who is speaking, when the screen shows code, and
+            how many faces are visible. Use it to choose the right visual treatment for each beat.
 
             Output a single JSON object with this exact shape:
             {
@@ -31,13 +35,33 @@ public class EditPlanClient {
                   "logos": null,
                   "imageQuery": null,
                   "zoom": null,
-                  "transition": null
+                  "transition": null,
+                  "type": "KINETIC",
+                  "speaker": "A",
+                  "speakers": ["A"],
+                  "kinetic": {
+                    "style": "timeline",
+                    "title": "Java evolution",
+                    "items": [
+                      {"label": "Java 8", "value": "2014", "detail": null},
+                      {"label": "Java 9", "value": "2017", "detail": null}
+                    ]
+                  },
+                  "focus": null
                 }
               ],
               "emphasis": [
                 {"word": "Virtual threads", "at": 0.0, "kind": "PUNCH"}
               ]
             }
+
+            Shot type (choose one per shot):
+            - SPEAKER: one speaker talking, no relevant screen content. Use SOURCE block.
+            - DIALOGUE_2UP: two speakers taking turns. Use SOURCE block and switch between speakers.
+            - DIALOGUE_3UP: three speakers. Use SOURCE block and rotate the active speaker.
+            - CODE: code/terminal fills the frame. Use CODE or TERMINAL block.
+            - MIXED: speaker visible while explaining code. Use SOURCE block; focus marks the screen region.
+            - KINETIC: sequence, history, list, or abstract concept. Use SLAM, HIGHLIGHT, COUNTER, or DIAGRAM block and provide a kinetic spec.
 
             Block catalogue. Only use these block values:
             - SOURCE: the speaker's real clip. Default when showing code or explaining. Use zoom to punch in.
@@ -57,10 +81,12 @@ public class EditPlanClient {
             - Non-SOURCE shots must not cover more than 60%% of the clip duration.
             - Shots must cover the full clip from 0 to duration with no gaps or overlaps.
             - The last shot must be OUTRO.
-            - Prefer SOURCE whenever the speaker is showing code, a terminal, or walking through a demo.
-            - Use SLAM/HIGHLIGHT/COUNTER for punchy statements, TERMINAL/CODE for commands or code, LOGO_WALL/DIAGRAM for architecture.
+            - Prefer CODE or MIXED whenever the screen shows relevant code, terminal, or demo.
+            - Use KINETIC for lists, version histories, comparisons, or any concept that benefits from motion graphics.
+            - Use DIALOGUE_2UP / DIALOGUE_3UP when the scene analysis shows multiple active speakers in that beat.
             - Keep text short and readable on a 1080x1920 vertical canvas.
             - Do not invent facts not in the transcript.
+            - If the screen has no code, never use CODE or MIXED type.
 
             Emphasis rules:
             - PUNCH: a word that should hit hard, often paired with a SLAM or HIGHLIGHT.
@@ -80,11 +106,22 @@ public class EditPlanClient {
     }
 
     @Retryable(maxRetries = 2, delay = 500)
-    public EditPlan plan(String videoTitle, String clipTranscript, double clipDuration, List<ThemeTopic> topics,
-            List<String> vocabulary) {
+    public EditPlan plan(String videoTitle, String clipTranscript, double clipDuration, Scene scene,
+            List<ThemeTopic> topics, List<String> vocabulary) {
         StringBuilder user = new StringBuilder();
         user.append("Video title: ").append(videoTitle).append("\n");
         user.append("Clip duration: ").append(clipDuration).append(" seconds\n");
+        if (scene != null) {
+            user.append("Speakers: ").append(scene.speakers().size()).append("\n");
+            user.append("Has code on screen: ").append(scene.hasCode()).append("\n");
+            user.append("Screen region: ").append(scene.screenRegion()).append("\n");
+            user.append("Screen changes: ").append(scene.screenChanges()).append("\n");
+            user.append("Active speakers:\n");
+            for (var activity : scene.activeSpeaker()) {
+                user.append("- ").append(activity.speakerId()).append(" ").append(activity.from()).append("-")
+                        .append(activity.to()).append("\n");
+            }
+        }
         if (!topics.isEmpty()) {
             user.append("Matching theme topics:\n");
             for (ThemeTopic topic : topics) {

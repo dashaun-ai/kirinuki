@@ -4,6 +4,7 @@ public enum PipelineStatus {
     DOWNLOADING(true),
     MEDIA_PREPARATION(true),
     FEATURE_EXTRACTION(true),
+    SCENE_ANALYSIS(true),
     CANDIDATE_GENERATION(true),
     AI_ANALYSIS(true),
     CLIP_RENDERING(true),

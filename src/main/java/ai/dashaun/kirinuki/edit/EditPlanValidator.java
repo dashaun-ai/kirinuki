@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import ai.dashaun.kirinuki.candidate.Word;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.vision.Scene;
 
 @Component
 public class EditPlanValidator {
@@ -22,6 +23,7 @@ public class EditPlanValidator {
     private static final int MAX_LINES = 10;
     private static final int MAX_LOGOS = 12;
     private static final int SLAM_MAX_WORDS = 3;
+    private static final double SPEAKER_BALANCE_THRESHOLD = 0.7;
 
     private final KirinukiPipelineProperties properties;
 
@@ -29,7 +31,7 @@ public class EditPlanValidator {
         this.properties = properties;
     }
 
-    public EditPlan validateAndRepair(EditPlan plan, double clipDuration, List<Word> words) {
+    public EditPlan validateAndRepair(EditPlan plan, double clipDuration, Scene scene, List<Word> words) {
         if (clipDuration <= 0) {
             throw new InvalidEditPlanException("Clip duration must be positive");
         }
@@ -40,6 +42,8 @@ public class EditPlanValidator {
         shots = enforceDurations(shots);
         shots = enforceDesignedRatio(shots, clipDuration);
         shots = validateAndRepairFields(shots);
+        shots = enforceShotTypes(shots, scene);
+        shots = enforceSpeakerBalance(shots, scene);
         shots = filterLogos(shots);
 
         if (shots.isEmpty()) {
@@ -61,8 +65,7 @@ public class EditPlanValidator {
                 continue;
             }
             ShotBlock block = shot.block() == null ? ShotBlock.SOURCE : shot.block();
-            cleaned.add(new Shot(in, out, block, shot.headline(), shot.subline(), shot.lines(), shot.logos(),
-                    shot.imageQuery(), shot.zoom(), shot.transition()));
+            cleaned.add(copy(shot, in, out, block));
         }
         cleaned.sort(Comparator.comparingDouble(Shot::in));
 
@@ -71,8 +74,7 @@ public class EditPlanValidator {
             if (!trimmed.isEmpty()) {
                 Shot last = trimmed.getLast();
                 if (shot.in() < last.out()) {
-                    shot = new Shot(last.out(), shot.out(), shot.block(), shot.headline(), shot.subline(),
-                            shot.lines(), shot.logos(), shot.imageQuery(), shot.zoom(), shot.transition());
+                    shot = copy(shot, last.out(), shot.out());
                     if (shot.out() <= shot.in()) {
                         continue;
                     }
@@ -116,13 +118,10 @@ public class EditPlanValidator {
                 while (cursor < shot.out()) {
                     double end = Math.min(cursor + limit, shot.out());
                     if (end - cursor >= min) {
-                        result.add(new Shot(cursor, end, shot.block(), shot.headline(), shot.subline(), shot.lines(),
-                                shot.logos(), shot.imageQuery(), shot.zoom(), shot.transition()));
+                        result.add(copy(shot, cursor, end));
                     } else if (!result.isEmpty()) {
                         Shot last = result.getLast();
-                        result.set(result.size() - 1,
-                                new Shot(last.in(), end, last.block(), last.headline(), last.subline(), last.lines(),
-                                        last.logos(), last.imageQuery(), last.zoom(), last.transition()));
+                        result.set(result.size() - 1, copy(last, last.in(), end));
                     }
                     cursor = end;
                 }
@@ -157,8 +156,7 @@ public class EditPlanValidator {
             if (shot.block() == ShotBlock.SOURCE) {
                 continue;
             }
-            converted.set(i, new Shot(shot.in(), shot.out(), ShotBlock.SOURCE, null, null, null, null, null,
-                    shot.zoom(), shot.transition()));
+            converted.set(i, sourceFrom(shot));
             current -= shot.out() - shot.in();
         }
         return converted;
@@ -174,8 +172,7 @@ public class EditPlanValidator {
                     if (headline == null || headline.isBlank() || headline.split("\\s+").length > SLAM_MAX_WORDS) {
                         yield sourceFrom(shot);
                     }
-                    yield new Shot(shot.in(), shot.out(), shot.block(), headline, null, null, null, null, shot.zoom(),
-                            shot.transition());
+                    yield withText(shot, headline, null, null);
                 }
                 case HIGHLIGHT -> {
                     String headline = trim(shot.headline(), MAX_HEADLINE_LENGTH);
@@ -183,24 +180,21 @@ public class EditPlanValidator {
                     if (headline == null || headline.isBlank() || subline == null || subline.isBlank()) {
                         yield sourceFrom(shot);
                     }
-                    yield new Shot(shot.in(), shot.out(), shot.block(), headline, subline, null, null, null, shot.zoom(),
-                            shot.transition());
+                    yield withText(shot, headline, subline, null);
                 }
                 case TERMINAL, CODE -> {
                     List<String> lines = trimLines(shot.lines());
                     if (lines.isEmpty()) {
                         yield sourceFrom(shot);
                     }
-                    yield new Shot(shot.in(), shot.out(), shot.block(), null, null, lines, null, null, shot.zoom(),
-                            shot.transition());
+                    yield withText(shot, null, null, lines);
                 }
                 case LOGO_WALL -> {
                     List<String> logos = trimList(shot.logos(), MAX_LOGOS);
                     if (logos.isEmpty()) {
                         yield sourceFrom(shot);
                     }
-                    yield new Shot(shot.in(), shot.out(), shot.block(), null, null, null, logos, null, shot.zoom(),
-                            shot.transition());
+                    yield withLogos(shot, logos);
                 }
                 case DIAGRAM -> {
                     String headline = trim(shot.headline(), MAX_HEADLINE_LENGTH);
@@ -208,16 +202,14 @@ public class EditPlanValidator {
                     if (headline == null || headline.isBlank() || lines.isEmpty()) {
                         yield sourceFrom(shot);
                     }
-                    yield new Shot(shot.in(), shot.out(), shot.block(), headline, null, lines, null, null, shot.zoom(),
-                            shot.transition());
+                    yield withText(shot, headline, null, lines);
                 }
                 case STAMP -> {
                     String headline = trim(shot.headline(), MAX_HEADLINE_LENGTH);
                     if (headline == null || headline.isBlank()) {
                         yield sourceFrom(shot);
                     }
-                    yield new Shot(shot.in(), shot.out(), shot.block(), headline, null, null, null, null, shot.zoom(),
-                            shot.transition());
+                    yield withText(shot, headline, null, null);
                 }
                 case COUNTER -> {
                     String headline = trim(shot.headline(), MAX_HEADLINE_LENGTH);
@@ -225,24 +217,21 @@ public class EditPlanValidator {
                     if (headline == null || headline.isBlank() || subline == null || subline.isBlank()) {
                         yield sourceFrom(shot);
                     }
-                    yield new Shot(shot.in(), shot.out(), shot.block(), headline, subline, null, null, null, shot.zoom(),
-                            shot.transition());
+                    yield withText(shot, headline, subline, null);
                 }
                 case IMAGE -> {
                     String imageQuery = trim(shot.imageQuery(), MAX_HEADLINE_LENGTH);
                     if (imageQuery == null || imageQuery.isBlank()) {
                         yield sourceFrom(shot);
                     }
-                    yield new Shot(shot.in(), shot.out(), shot.block(), trim(shot.headline(), MAX_HEADLINE_LENGTH), null,
-                            null, null, imageQuery, shot.zoom(), shot.transition());
+                    yield withImage(shot, trim(shot.headline(), MAX_HEADLINE_LENGTH), imageQuery);
                 }
                 case OUTRO -> {
                     String headline = trim(shot.headline(), MAX_HEADLINE_LENGTH);
                     if (headline == null || headline.isBlank()) {
                         yield sourceFrom(shot);
                     }
-                    yield new Shot(shot.in(), shot.out(), shot.block(), headline, null, null, null, null, shot.zoom(),
-                            shot.transition());
+                    yield withText(shot, headline, null, null);
                 }
             };
             repaired.add(fixed);
@@ -262,8 +251,7 @@ public class EditPlanValidator {
                     result.add(sourceFrom(shot));
                     continue;
                 }
-                result.add(new Shot(shot.in(), shot.out(), shot.block(), shot.headline(), shot.subline(), shot.lines(),
-                        filtered, shot.imageQuery(), shot.zoom(), shot.transition()));
+                result.add(withLogos(shot, filtered));
             } else {
                 result.add(shot);
             }
@@ -292,8 +280,7 @@ public class EditPlanValidator {
         if (!result.isEmpty()) {
             Shot last = result.getLast();
             if (outroIn - last.in() >= min) {
-                result.set(result.size() - 1, new Shot(last.in(), outroIn, last.block(), last.headline(), last.subline(),
-                        last.lines(), last.logos(), last.imageQuery(), last.zoom(), last.transition()));
+                result.set(result.size() - 1, copy(last, last.in(), outroIn));
             } else {
                 outroIn = last.in();
                 result.removeLast();
@@ -301,7 +288,7 @@ public class EditPlanValidator {
         }
 
         result.add(new Shot(outroIn, clipDuration, ShotBlock.OUTRO, "Follow for more", null, null, null, null, null,
-                null));
+                null, null, null, null, null, null));
         return result;
     }
 
@@ -327,13 +314,101 @@ public class EditPlanValidator {
         return snapped;
     }
 
+    private Shot copy(Shot shot, double in, double out) {
+        return copy(shot, in, out, shot.block());
+    }
+
+    private Shot copy(Shot shot, ShotBlock block) {
+        return copy(shot, shot.in(), shot.out(), block);
+    }
+
+    private Shot copy(Shot shot, double in, double out, ShotBlock block) {
+        return new Shot(in, out, block, shot.headline(), shot.subline(), shot.lines(), shot.logos(), shot.imageQuery(),
+                shot.zoom(), shot.transition(), shot.type(), shot.speaker(), shot.speakers(), shot.kinetic(),
+                shot.focus());
+    }
+
+    private Shot withText(Shot shot, String headline, String subline, List<String> lines) {
+        return new Shot(shot.in(), shot.out(), shot.block(), headline, subline, lines, shot.logos(), shot.imageQuery(),
+                shot.zoom(), shot.transition(), shot.type(), shot.speaker(), shot.speakers(), shot.kinetic(),
+                shot.focus());
+    }
+
+    private Shot withLogos(Shot shot, List<String> logos) {
+        return new Shot(shot.in(), shot.out(), shot.block(), shot.headline(), shot.subline(), shot.lines(), logos,
+                shot.imageQuery(), shot.zoom(), shot.transition(), shot.type(), shot.speaker(), shot.speakers(),
+                shot.kinetic(), shot.focus());
+    }
+
+    private Shot withImage(Shot shot, String headline, String imageQuery) {
+        return new Shot(shot.in(), shot.out(), shot.block(), headline, shot.subline(), shot.lines(), shot.logos(),
+                imageQuery, shot.zoom(), shot.transition(), shot.type(), shot.speaker(), shot.speakers(),
+                shot.kinetic(), shot.focus());
+    }
+
+    private List<Shot> enforceShotTypes(List<Shot> shots, Scene scene) {
+        boolean hasCode = scene != null && scene.hasCode();
+        List<Shot> result = new ArrayList<>();
+        for (Shot shot : shots) {
+            ShotType type = shot.type();
+            if ((type == ShotType.CODE || type == ShotType.MIXED) && !hasCode) {
+                result.add(copy(shot, shot.in(), shot.out(), ShotBlock.SOURCE)
+                        .withType(ShotType.SPEAKER)
+                        .withFocus(null));
+            } else if (type == ShotType.KINETIC && shot.kinetic() == null) {
+                result.add(copy(shot, shot.in(), shot.out(), ShotBlock.SOURCE)
+                        .withType(ShotType.SPEAKER)
+                        .withKinetic(null));
+            } else {
+                result.add(shot);
+            }
+        }
+        return result;
+    }
+
+    private List<Shot> enforceSpeakerBalance(List<Shot> shots, Scene scene) {
+        if (scene == null || scene.speakers().size() < 2) {
+            return shots;
+        }
+        double speakerDuration = shots.stream()
+                .filter(shot -> shot.block() != ShotBlock.OUTRO && shot.speaker() != null)
+                .mapToDouble(shot -> shot.out() - shot.in())
+                .sum();
+        if (speakerDuration <= 0) {
+            return shots;
+        }
+        List<Shot> result = new ArrayList<>(shots);
+        for (String speakerId : scene.speakers().stream().map(ai.dashaun.kirinuki.vision.SceneSpeaker::id).toList()) {
+            double current = result.stream()
+                    .filter(shot -> shot.block() != ShotBlock.OUTRO && speakerId.equals(shot.speaker()))
+                    .mapToDouble(shot -> shot.out() - shot.in())
+                    .sum();
+            if (current / speakerDuration <= SPEAKER_BALANCE_THRESHOLD) {
+                continue;
+            }
+            double target = speakerDuration * SPEAKER_BALANCE_THRESHOLD;
+            for (int i = result.size() - 2; i >= 0 && current > target; i--) {
+                Shot shot = result.get(i);
+                if (shot.block() == ShotBlock.OUTRO || !speakerId.equals(shot.speaker())) {
+                    continue;
+                }
+                result.set(i, copy(shot, shot.in(), shot.out(), ShotBlock.SOURCE)
+                        .withType(ShotType.SPEAKER)
+                        .withSpeaker(null));
+                current -= shot.out() - shot.in();
+            }
+        }
+        return result;
+    }
+
     private Shot sourceFrom(Shot shot) {
         return new Shot(shot.in(), shot.out(), ShotBlock.SOURCE, null, null, null, null, null, shot.zoom(),
-                shot.transition());
+                shot.transition(), shot.type(), shot.speaker(), shot.speakers(), shot.kinetic(), shot.focus());
     }
 
     private Shot sourceShot(double in, double out) {
-        return new Shot(in, out, ShotBlock.SOURCE, null, null, null, null, null, null, null);
+        return new Shot(in, out, ShotBlock.SOURCE, null, null, null, null, null, null, null, null, null, null, null,
+                null);
     }
 
     private String trim(String value, int maxLength) {

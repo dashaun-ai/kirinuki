@@ -40,12 +40,17 @@ class DesignedEditRendererTest {
                         false, 200, java.time.Duration.ofMillis(400), java.time.Duration.ofMillis(600),
                         java.time.Duration.ofMillis(1200), 30, java.time.Duration.ofMinutes(5),
                         new KirinukiPipelineProperties.Render.Reframe(3.0, 1.25, 480, 480, 8)),
-                null, null, null,
+                null, null, null, null,
                 new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12,
-                        0.6, null, null, null));
+                        0.6, null, null, null, null, null, null));
         JsonMapper objectMapper = new JsonMapper();
-        renderer = new DesignedEditRenderer(properties, new ProcessRunner(), new TranscriptReader(objectMapper),
-                new SubtitleWriter(properties));
+        SubtitleWriter subtitleWriter = new SubtitleWriter(properties);
+        ProcessRunner processRunner = new ProcessRunner();
+        SourceLayout sourceLayout = new SourceLayout(properties, processRunner, subtitleWriter);
+        KineticRenderer kineticRenderer = new KineticRenderer(processRunner, properties);
+        renderer = new DesignedEditRenderer(properties, processRunner, new TranscriptReader(objectMapper),
+                subtitleWriter, List.of(sourceLayout), kineticRenderer, objectMapper,
+                new EditMixer(processRunner, properties));
         source = directory.resolve("source.mp4");
         transcript = directory.resolve("transcript.json");
         createSourceVideo();
@@ -91,9 +96,12 @@ class DesignedEditRendererTest {
         ScoredCandidate scored = new ScoredCandidate(new Candidate(1, 0.0, 5.0, 0, 0, "hello world"),
                 new CandidateScore(8, 8, 8, 8, List.of(), "reason"), 80);
         EditPlan plan = new EditPlan(1, "spring", List.of(
-                new Shot(0, 2, ShotBlock.SOURCE, null, null, null, null, null, null, null),
-                new Shot(2, 4, ShotBlock.SLAM, "SLAM", null, null, null, null, null, null),
-                new Shot(4, 5, ShotBlock.OUTRO, "Thanks", null, null, null, null, null, null)), List.of());
+                new Shot(0, 2, ShotBlock.SOURCE, null, null, null, null, null, null, null, null, null, null, null,
+                        null),
+                new Shot(2, 4, ShotBlock.SLAM, "SLAM", null, null, null, null, null, null, null, null, null, null,
+                        null),
+                new Shot(4, 5, ShotBlock.OUTRO, "Thanks", null, null, null, null, null, null, null, null, null, null,
+                        null)), List.of());
         Path output = directory.resolve("designed").resolve("designed.mp4");
 
         renderer.render(source, transcript, scored, plan, "Test Title", output);

@@ -24,6 +24,7 @@ class PipelineStatusTest {
                 PipelineStatus.DOWNLOADING,
                 PipelineStatus.MEDIA_PREPARATION,
                 PipelineStatus.FEATURE_EXTRACTION,
+                PipelineStatus.SCENE_ANALYSIS,
                 PipelineStatus.CANDIDATE_GENERATION,
                 PipelineStatus.AI_ANALYSIS,
                 PipelineStatus.CLIP_RENDERING,

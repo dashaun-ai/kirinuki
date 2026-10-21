@@ -3,7 +3,6 @@ package ai.dashaun.kirinuki.edit;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -19,8 +18,11 @@ import ai.dashaun.kirinuki.common.KirinukiException;
 import ai.dashaun.kirinuki.common.ProcessRunner;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
 import ai.dashaun.kirinuki.media.FfmpegClient;
+import ai.dashaun.kirinuki.pipeline.Artifacts;
 import ai.dashaun.kirinuki.render.SubtitleWriter;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
+import ai.dashaun.kirinuki.vision.Scene;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class DesignedEditRenderer {
@@ -35,13 +37,22 @@ public class DesignedEditRenderer {
     private final ProcessRunner processRunner;
     private final TranscriptReader transcriptReader;
     private final SubtitleWriter subtitleWriter;
+    private final List<LayoutRenderer> layouts;
+    private final KineticRenderer kineticRenderer;
+    private final ObjectMapper objectMapper;
+    private final EditMixer editMixer;
 
     public DesignedEditRenderer(KirinukiPipelineProperties properties, ProcessRunner processRunner,
-            TranscriptReader transcriptReader, SubtitleWriter subtitleWriter) {
+            TranscriptReader transcriptReader, SubtitleWriter subtitleWriter, List<LayoutRenderer> layouts,
+            KineticRenderer kineticRenderer, ObjectMapper objectMapper, EditMixer editMixer) {
         this.properties = properties;
         this.processRunner = processRunner;
         this.transcriptReader = transcriptReader;
         this.subtitleWriter = subtitleWriter;
+        this.layouts = layouts;
+        this.kineticRenderer = kineticRenderer;
+        this.objectMapper = objectMapper;
+        this.editMixer = editMixer;
     }
 
     public void render(Path source, Path transcript, ScoredCandidate scored, EditPlan plan, String title,
@@ -53,6 +64,7 @@ public class DesignedEditRenderer {
         double clipStart = candidate.start();
         double clipDuration = candidate.end() - candidate.start();
         List<Word> words = transcriptReader.readWords(transcript);
+        Scene scene = readScene(source.resolveSibling(Artifacts.SCENE));
 
         Path segmentsDir = output.resolveSibling(output.getFileName().toString() + ".segments");
         createDirectory(segmentsDir);
@@ -61,28 +73,67 @@ public class DesignedEditRenderer {
         for (int index = 0; index < plan.shots().size(); index++) {
             Shot shot = plan.shots().get(index);
             Path segment = segmentsDir.resolve("shot-%03d.mp4".formatted(index));
-            renderShot(source, words, clipStart, clipDuration, shot, title, segment);
+            renderShot(source, words, clipStart, clipDuration, shot, scene, title, segment);
             segments.add(segment);
         }
 
-        Path concatList = segmentsDir.resolve("concat.txt");
-        writeConcatList(segments, concatList);
-        concatSegments(concatList, output);
+        editMixer.mix(source, clipStart, segments, plan.shots(), output);
         cleanup(segmentsDir);
     }
 
     private void renderShot(Path source, List<Word> words, double clipStart, double clipDuration, Shot shot,
-            String title, Path output) {
+            Scene scene, String title, Path output) {
         double shotStart = clipStart + Math.max(0, shot.in());
         double shotEnd = clipStart + Math.min(shot.out(), clipDuration);
         double duration = Math.max(0.1, shotEnd - shotStart);
         shotEnd = shotStart + duration;
 
-        log.info("Rendering shot block={} for output={}", shot.block(), output.getFileName());
-        if (shot.block() == ShotBlock.SOURCE) {
+        log.info("Rendering shot type={} block={} for output={}", shot.type(), shot.block(), output.getFileName());
+        if (shot.type() == ShotType.KINETIC && shot.kinetic() != null) {
+            Path audioSlice = output.resolveSibling(output.getFileName() + ".wav");
+            extractAudioSlice(source, shotStart, duration, audioSlice);
+            kineticRenderer.render(shot.kinetic(), audioSlice, output);
+            return;
+        }
+        LayoutRenderer layout = layoutFor(shot.type());
+        if (layout != null) {
+            layout.render(source, words, clipStart, clipDuration, shot, scene, output);
+        } else if (shot.block() == ShotBlock.SOURCE) {
             renderSourceSegment(source, words, shotStart, shotEnd, duration, shot, output);
         } else {
             renderDesignedSegment(duration, shot, title, output);
+        }
+    }
+
+    private void extractAudioSlice(Path source, double start, double duration, Path target) {
+        String binary = properties.media().binary();
+        processRunner.run(binary, List.of(binary,
+                "-y",
+                "-hide_banner",
+                "-nostats",
+                "-ss", String.valueOf(start),
+                "-t", String.valueOf(duration),
+                "-i", source.toString(),
+                "-vn",
+                "-ac", "1",
+                "-ar", "16000",
+                "-c:a", "pcm_s16le",
+                target.toString()), properties.media().timeout());
+    }
+
+    private LayoutRenderer layoutFor(ShotType type) {
+        return layouts.stream().filter(layout -> layout.supports(type)).findFirst().orElse(null);
+    }
+
+    private Scene readScene(Path sceneFile) {
+        try {
+            if (!Files.exists(sceneFile)) {
+                return null;
+            }
+            return objectMapper.readValue(Files.readString(sceneFile), Scene.class);
+        } catch (IOException exception) {
+            log.warn("Could not read scene analysis from {} — continuing without it", sceneFile, exception);
+            return null;
         }
     }
 
@@ -289,31 +340,6 @@ public class DesignedEditRenderer {
             }
         }
         return null;
-    }
-
-    private void concatSegments(Path concatList, Path output) {
-        String binary = properties.media().binary();
-        processRunner.run(binary, List.of(binary,
-                "-y",
-                "-hide_banner",
-                "-nostats",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", concatList.toString(),
-                "-c", "copy",
-                output.toString()), Duration.ofMinutes(10));
-    }
-
-    private void writeConcatList(List<Path> segments, Path target) {
-        StringBuilder list = new StringBuilder();
-        for (Path segment : segments) {
-            list.append("file '").append(segment.toAbsolutePath()).append("'\n");
-        }
-        try {
-            Files.writeString(target, list.toString());
-        } catch (IOException exception) {
-            throw new KirinukiException("Could not write concat list " + target, exception);
-        }
     }
 
     private void createDirectory(Path path) {

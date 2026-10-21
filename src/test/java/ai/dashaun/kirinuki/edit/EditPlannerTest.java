@@ -33,9 +33,9 @@ class EditPlannerTest {
     private final EditPlanClient editPlanClient = mock(EditPlanClient.class);
     private final EditPlanValidator validator = new EditPlanValidator(
             new ai.dashaun.kirinuki.config.KirinukiPipelineProperties(
-                    null, null, null, null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null, null,
                     new ai.dashaun.kirinuki.config.KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest",
-                            0.4, 2048, 0.8, 6, 12, 0.6, null, null, null)));
+                            0.4, 2048, 0.8, 6, 12, 0.6, null, null, null, null, null, null)));
 
     private final EditPlanner planner = new EditPlanner(objectMapper, transcriptReader, themeCatalog, editPlanClient,
             validator);
@@ -48,10 +48,11 @@ class EditPlannerTest {
         when(themeCatalog.matches(anyString())).thenReturn(List.of());
         when(themeCatalog.vocabulary()).thenReturn(List.of());
         when(themeCatalog.accent()).thenReturn("#6DB33F");
-        when(editPlanClient.plan(anyString(), anyString(), anyDouble(), anyList(), anyList()))
+        when(editPlanClient.plan(anyString(), anyString(), anyDouble(), any(), anyList(), anyList()))
                 .thenThrow(new RuntimeException("model unavailable"));
 
-        List<EditPlan> plans = planner.planForVideo(scored, transcript, "Test video");
+        List<EditPlan> plans = planner.planForVideo(scored, transcript, directory.resolve("missing-scene.json"),
+                "Test video");
 
         assertThat(plans).hasSize(1);
         assertThat(plans.getFirst().shots()).allMatch(s -> s.block() == ShotBlock.SOURCE || s.block() == ShotBlock.OUTRO);
@@ -65,12 +66,14 @@ class EditPlannerTest {
         when(themeCatalog.matches(anyString())).thenReturn(List.of());
         when(themeCatalog.vocabulary()).thenReturn(List.of());
         when(themeCatalog.accent()).thenReturn("#6DB33F");
-        when(editPlanClient.plan(anyString(), anyString(), anyDouble(), anyList(), anyList()))
+        when(editPlanClient.plan(anyString(), anyString(), anyDouble(), any(), anyList(), anyList()))
                 .thenReturn(new EditPlan(1, "spring",
-                        List.of(new Shot(0, 5, ShotBlock.SOURCE, null, null, null, null, null, null, null)),
+                        List.of(new Shot(0, 5, ShotBlock.SOURCE, null, null, null, null, null, null, null, null, null,
+                                null, null, null)),
                         List.of(new Emphasis("run", 2.1, EmphasisKind.PUNCH))));
 
-        List<EditPlan> plans = planner.planForVideo(scored, transcript, "Test video");
+        List<EditPlan> plans = planner.planForVideo(scored, transcript, directory.resolve("missing-scene.json"),
+                "Test video");
 
         assertThat(plans.getFirst().emphasis().getFirst().at()).isEqualTo(2);
     }

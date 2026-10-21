@@ -35,3 +35,6 @@ build/
 .envrc
 *.log
 *.pid
+__pycache__/
+*.py
+scripts/*.py

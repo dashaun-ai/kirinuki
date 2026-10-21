@@ -5,10 +5,10 @@ logging:
 spring:
   ai:
     openai:
-      base-url: ${OPENAI_BASE_URL}
+      base-url: ${OPENAI_BASE_URL:${SEKISHO_URL:https://sekisho.dashaun.ai/v1}}
       api-key: ${OPENAI_API_KEY}
       chat:
-        model: ${CHAT_MODEL:llama4:latest}
+        model: ${CHAT_MODEL:${SEKISHO_MODEL:llama4:latest}}
 
 kirinuki:
   pipeline:

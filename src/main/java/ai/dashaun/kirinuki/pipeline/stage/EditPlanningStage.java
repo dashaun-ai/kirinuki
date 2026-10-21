@@ -60,11 +60,12 @@ class EditPlanningStage implements PipelineStage {
         String videoId = video.getId().toString();
         Path scoredFile = storageService.resolve(videoId, Artifacts.SCORED);
         Path transcriptFile = storageService.resolve(videoId, Artifacts.TRANSCRIPT);
+        Path sceneFile = storageService.resolve(videoId, Artifacts.SCENE);
         Path target = storageService.temporaryFor(videoId, Artifacts.EDIT_PLANS);
 
         List<EditPlan> plans;
         if (properties.edit().enabled()) {
-            plans = editPlanner.planForVideo(scoredFile, transcriptFile, video.getTitle());
+            plans = editPlanner.planForVideo(scoredFile, transcriptFile, sceneFile, video.getTitle());
         } else {
             plans = sourceOnlyPlans(scoredFile, transcriptFile);
         }
