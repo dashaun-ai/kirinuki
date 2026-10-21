@@ -3,12 +3,14 @@ package ai.dashaun.kirinuki.edit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
 import ai.dashaun.kirinuki.candidate.Word;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.config.KirinukiPipelineProperties.Edit.Renderer;
 import ai.dashaun.kirinuki.vision.Scene;
 import ai.dashaun.kirinuki.vision.SceneSpeaker;
 import ai.dashaun.kirinuki.vision.ScreenRegion;
@@ -19,9 +21,17 @@ class EditPlanValidatorTest {
 
     private final KirinukiPipelineProperties properties = new KirinukiPipelineProperties(
             null, null, null, null, null, null, null, null, null, null,
-            new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12, 0.6, null, null, null, null, null, null));
+            new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12,
+                    0.6, null, null, null, null, null, null, Renderer.HYBRID, true, Duration.ofMinutes(30)));
 
     private final EditPlanValidator validator = new EditPlanValidator(properties);
+
+    private EditPlanValidator validatorWith(Renderer renderer, boolean multiSpeaker) {
+        return new EditPlanValidator(new KirinukiPipelineProperties(
+                null, null, null, null, null, null, null, null, null, null,
+                new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12,
+                        0.6, null, null, null, null, null, null, renderer, multiSpeaker, Duration.ofMinutes(30))));
+    }
 
     @Test
     void should_fill_gap_with_source_when_shots_do_not_touch() {
@@ -210,6 +220,58 @@ class EditPlanValidatorTest {
         long speakerA = result.shots().stream().filter(s -> "A".equals(s.speaker())).count();
         long speakerB = result.shots().stream().filter(s -> "B".equals(s.speaker())).count();
         assertThat(speakerA).isLessThanOrEqualTo(speakerB + 1);
+    }
+
+    @Test
+    void should_convert_kinetic_to_speaker_when_renderer_is_ffmpeg() {
+        EditPlan plan = plan(new Shot(0, 5, ShotBlock.SOURCE, null, null, null, null, null, null, null,
+                ShotType.KINETIC, null, null, new KineticSpec(null, null, null), null));
+
+        EditPlan result = validatorWith(Renderer.FFMPEG, true).validateAndRepair(plan, 5, null, List.of());
+
+        assertThat(result.shots().get(0).type()).isEqualTo(ShotType.SPEAKER);
+        assertThat(result.shots().get(0).block()).isEqualTo(ShotBlock.SOURCE);
+    }
+
+    @Test
+    void should_keep_kinetic_when_renderer_is_hybrid() {
+        EditPlan plan = plan(new Shot(0, 5, ShotBlock.SOURCE, null, null, null, null, null, null, null,
+                ShotType.KINETIC, null, null, new KineticSpec(null, null, null), null));
+
+        EditPlan result = validator.validateAndRepair(plan, 5, null, List.of());
+
+        assertThat(result.shots().get(0).type()).isEqualTo(ShotType.KINETIC);
+    }
+
+    @Test
+    void should_convert_code_and_dialogue_and_mixed_to_speaker_when_renderer_is_kinetic() {
+        EditPlan plan = plan(
+                new Shot(0, 2, ShotBlock.CODE, null, null, List.of("line"), null, null, null, null, ShotType.CODE,
+                        null, null, null, null),
+                new Shot(2, 3, ShotBlock.SOURCE, null, null, null, null, null, null, null, ShotType.DIALOGUE_2UP, null,
+                        List.of("A", "B"), null, null),
+                new Shot(3, 5, ShotBlock.SOURCE, null, null, null, null, null, null, null, ShotType.MIXED, null, null,
+                        null, null));
+        Scene scene = scene(true, List.of(new SceneSpeaker("A", "track-1"), new SceneSpeaker("B", "track-2")));
+
+        EditPlan result = validatorWith(Renderer.KINETIC, true).validateAndRepair(plan, 5, scene, List.of());
+
+        List<ShotType> types = result.shots().stream().filter(s -> s.block() == ShotBlock.SOURCE).map(Shot::type)
+                .toList();
+        assertThat(types).containsOnly(ShotType.SPEAKER);
+    }
+
+    @Test
+    void should_convert_dialogue_layouts_to_speaker_when_multi_speaker_disabled() {
+        EditPlan plan = plan(
+                new Shot(0, 2, ShotBlock.SOURCE, null, null, null, null, null, null, null, ShotType.DIALOGUE_2UP, null,
+                        List.of("A", "B"), null, null),
+                new Shot(2, 4, ShotBlock.SOURCE, null, null, null, null, null, null, null, ShotType.DIALOGUE_3UP, null,
+                        List.of("A", "B", "C"), null, null));
+
+        EditPlan result = validatorWith(Renderer.HYBRID, false).validateAndRepair(plan, 4, null, List.of());
+
+        assertThat(result.shots()).allMatch(s -> s.type() != ShotType.DIALOGUE_2UP && s.type() != ShotType.DIALOGUE_3UP);
     }
 
     private Scene scene(boolean hasCode, List<SceneSpeaker> speakers) {

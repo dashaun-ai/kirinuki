@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +18,7 @@ import ai.dashaun.kirinuki.candidate.TranscriptReader;
 import ai.dashaun.kirinuki.common.ProcessRunner;
 import ai.dashaun.kirinuki.common.ToolNotAvailableException;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.config.KirinukiPipelineProperties.Edit.Renderer;
 import ai.dashaun.kirinuki.render.SubtitleWriter;
 import ai.dashaun.kirinuki.scoring.CandidateScore;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
@@ -42,7 +44,7 @@ class DesignedEditRendererTest {
                         new KirinukiPipelineProperties.Render.Reframe(3.0, 1.25, 480, 480, 8)),
                 null, null, null, null,
                 new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12,
-                        0.6, null, null, null, null, null, null));
+                        0.6, null, null, null, null, null, null, Renderer.HYBRID, true, Duration.ofMinutes(30)));
         JsonMapper objectMapper = new JsonMapper();
         SubtitleWriter subtitleWriter = new SubtitleWriter(properties);
         ProcessRunner processRunner = new ProcessRunner();

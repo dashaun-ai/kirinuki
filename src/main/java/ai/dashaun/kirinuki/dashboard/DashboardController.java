@@ -64,6 +64,8 @@ public class DashboardController {
         model.addAttribute("clips", reviewService.review(videoId));
         model.addAttribute("fields", ContentField.values());
         model.addAttribute("editEnabled", properties.edit().enabled());
+        model.addAttribute("editRenderer", properties.edit().renderer().name());
+        model.addAttribute("editMultiSpeaker", properties.edit().multiSpeaker());
         return "dashboard";
     }
 
@@ -110,6 +112,12 @@ public class DashboardController {
     @PostMapping("/videos/{videoId}/dashboard/clips/{clipIndex}/designed")
     public String renderDesigned(@PathVariable UUID videoId, @PathVariable int clipIndex) {
         designedEditService.render(videoId, clipIndex);
+        return redirect(videoId);
+    }
+
+    @PostMapping("/videos/{videoId}/dashboard/clips/{clipIndex}/designed/render")
+    public String reRenderDesigned(@PathVariable UUID videoId, @PathVariable int clipIndex) {
+        designedEditService.forceRender(videoId, clipIndex);
         return redirect(videoId);
     }
 

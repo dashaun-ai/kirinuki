@@ -88,6 +88,8 @@
 (() => {
     const VIDEO_ID = [[${video.id}]];
     const EDIT_ENABLED = [[${editEnabled}]];
+    const EDIT_RENDERER = [[${editRenderer}]];
+    const EDIT_MULTI_SPEAKER = [[${editMultiSpeaker}]];
 
     const state = { clips: [], selected: 0, editing: false, activePlatform: 0, transcriptOpen: false };
 
@@ -231,6 +233,14 @@
     }
 
     const BLOCK_ICON = { TITLE_CARD: "A", SOURCE: "▦", B_ROLL: "&lt;/&gt;", LOGO_WALL: "▣" };
+    const TYPE_LABEL = {
+        KINETIC: "Kinetic",
+        CODE: "Code",
+        SPEAKER: "Speaker",
+        DIALOGUE_2UP: "2-up",
+        DIALOGUE_3UP: "3-up",
+        MIXED: "Mixed"
+    };
 
     function designedSection(clip) {
         if (!EDIT_ENABLED) return "";
@@ -254,6 +264,7 @@
                 <div class="shot-ic">${BLOCK_ICON[s.block] || "•"}</div>
                 <div>
                     <span class="shot-block">${s.block}</span>
+                    <span class="shot-type">${TYPE_LABEL[s.type] || s.type || "—"}</span>
                     <span class="shot-time">${s.in.toFixed(1)} – ${s.out.toFixed(1)}</span>
                     <div class="shot-desc">${esc([s.headline, s.subline, ...(s.lines || [])].filter(Boolean).join(" — "))}</div>
                 </div>
@@ -269,9 +280,15 @@
         } else {
             stateBlock = `<div class="de-note"><span class="ok-dot">●</span>Plan ready — not yet rendered. Rendering replaces the source-only cut for this clip.</div>`;
         }
-        const renderBtn = status === "QUEUED" || status === "RENDERING"
+        const rendering = status === "QUEUED" || status === "RENDERING";
+        const renderBtn = rendering
             ? `<button class="btn btn-ghost" disabled>Rendering…</button>`
-            : `<button class="btn btn-primary" id="renderDeBtn">Render designed edit</button>`;
+            : (status === "READY" || status === "FAILED")
+                ? ""
+                : `<button class="btn btn-primary" id="renderDeBtn">Render designed edit</button>`;
+        const reRenderBtn = (status === "READY" || status === "FAILED")
+            ? `<button class="btn btn-primary" id="reRenderDeBtn">Re-render designed edit</button>`
+            : "";
         const download = status === "READY" && clip.designedEditUrl
             ? `<a class="btn btn-ghost" href="${esc(clip.designedEditUrl)}">Download designed</a>` : "";
         return `<div class="card section-card">
@@ -284,7 +301,8 @@
             <div class="timeline-scale"><span>0:00</span><span>0:${String(Math.round(total)).padStart(2, "0")}</span></div>
             <ul class="shot-list">${shots}</ul>
             ${stateBlock}
-            <div class="callout-actions">${renderBtn}${download}</div>
+            <div class="de-config">Renderer: ${EDIT_RENDERER} · Multi-speaker: ${EDIT_MULTI_SPEAKER}</div>
+            <div class="callout-actions">${renderBtn}${reRenderBtn}${download}</div>
             <div class="de-status-line">designedEditStatus: QUEUED → RENDERING → READY</div>
         </div>`;
     }
@@ -346,6 +364,8 @@
             el.addEventListener("click", () => regen(el.dataset.regen, el)));
         const renderDeBtn = $("renderDeBtn");
         if (renderDeBtn) renderDeBtn.addEventListener("click", renderDesigned);
+        const reRenderDeBtn = $("reRenderDeBtn");
+        if (reRenderDeBtn) reRenderDeBtn.addEventListener("click", reRenderDesigned);
     }
 
     function renderAll() {
@@ -438,6 +458,21 @@
             await api("/videos/" + VIDEO_ID + "/clips/" + clip.clipIndex + "/designed", { method: "POST" });
             clip.designedEditStatus = "QUEUED";
             renderDetail();
+        } catch (ignored) {
+        }
+    }
+
+    async function reRenderDesigned() {
+        const clip = selected();
+        try {
+            const res = await fetch("/videos/" + VIDEO_ID + "/dashboard/clips/" + clip.clipIndex + "/designed/render", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            });
+            if (res.ok) {
+                clip.designedEditStatus = "QUEUED";
+                renderDetail();
+            }
         } catch (ignored) {
         }
     }

@@ -90,6 +90,20 @@ public class DesignedEditService {
         if (row.getStatus() == DesignedEditStatus.RENDERING || row.getStatus() == DesignedEditStatus.READY) {
             return;
         }
+        startRender(videoId, clipIndex, row);
+    }
+
+    public void forceRender(UUID videoId, int clipIndex) {
+        DesignedEdit row = repository.findByVideoIdAndClipIndex(videoId, clipIndex)
+                .orElseThrow(() -> new DesignedEditNotFoundException(videoId, clipIndex));
+        if (row.getStatus() == DesignedEditStatus.RENDERING) {
+            return;
+        }
+        update(row, DesignedEditStatus.QUEUED, null);
+        startRender(videoId, clipIndex, row);
+    }
+
+    private void startRender(UUID videoId, int clipIndex, DesignedEdit row) {
         Map<Integer, EditPlan> plans = readPlans(videoId);
         EditPlan plan = plans.get(clipIndex);
         if (plan == null) {

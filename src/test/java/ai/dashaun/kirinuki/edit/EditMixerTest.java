@@ -17,6 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 import ai.dashaun.kirinuki.common.ProcessRunner;
 import ai.dashaun.kirinuki.common.ToolNotAvailableException;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.config.KirinukiPipelineProperties.Edit.Renderer;
 
 class EditMixerTest {
 
@@ -37,7 +38,7 @@ class EditMixerTest {
                         new KirinukiPipelineProperties.Render.Reframe(3.0, 1.25, 480, 480, 8)),
                 null, null, null, null,
                 new KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest", 0.4, 2048, 0.8, 6, 12,
-                        0.6, null, null, null, null, null, null));
+                        0.6, null, null, null, null, null, null, Renderer.HYBRID, true, Duration.ofMinutes(30)));
         ProcessRunner processRunner = new ProcessRunner();
         mixer = new EditMixer(processRunner, properties);
         source = directory.resolve("source.mp4");

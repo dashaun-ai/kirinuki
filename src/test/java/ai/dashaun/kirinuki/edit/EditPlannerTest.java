@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.io.TempDir;
 import ai.dashaun.kirinuki.candidate.Candidate;
 import ai.dashaun.kirinuki.candidate.TranscriptReader;
 import ai.dashaun.kirinuki.candidate.Word;
+import ai.dashaun.kirinuki.config.KirinukiPipelineProperties.Edit.Renderer;
 import ai.dashaun.kirinuki.pipeline.Artifacts;
 import ai.dashaun.kirinuki.scoring.CandidateScore;
 import ai.dashaun.kirinuki.scoring.ScoredCandidate;
@@ -35,7 +37,8 @@ class EditPlannerTest {
             new ai.dashaun.kirinuki.config.KirinukiPipelineProperties(
                     null, null, null, null, null, null, null, null, null, null,
                     new ai.dashaun.kirinuki.config.KirinukiPipelineProperties.Edit(true, true, 3, "spring", "llama4:latest",
-                            0.4, 2048, 0.8, 6, 12, 0.6, null, null, null, null, null, null)));
+                            0.4, 2048, 0.8, 6, 12, 0.6, null, null, null, null, null, null, Renderer.HYBRID, true,
+                            Duration.ofMinutes(30))));
 
     private final EditPlanner planner = new EditPlanner(objectMapper, transcriptReader, themeCatalog, editPlanClient,
             validator);

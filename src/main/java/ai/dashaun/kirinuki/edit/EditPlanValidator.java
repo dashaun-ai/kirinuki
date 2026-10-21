@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import ai.dashaun.kirinuki.candidate.Word;
 import ai.dashaun.kirinuki.config.KirinukiPipelineProperties;
+import ai.dashaun.kirinuki.config.KirinukiPipelineProperties.Edit.Renderer;
 import ai.dashaun.kirinuki.vision.Scene;
 
 @Component
@@ -43,6 +44,7 @@ public class EditPlanValidator {
         shots = enforceDesignedRatio(shots, clipDuration);
         shots = validateAndRepairFields(shots);
         shots = enforceShotTypes(shots, scene);
+        shots = enforceRendererAndMultiSpeaker(shots);
         shots = enforceSpeakerBalance(shots, scene);
         shots = filterLogos(shots);
 
@@ -362,6 +364,31 @@ public class EditPlanValidator {
             } else {
                 result.add(shot);
             }
+        }
+        return result;
+    }
+
+    private List<Shot> enforceRendererAndMultiSpeaker(List<Shot> shots) {
+        Renderer renderer = properties.edit().renderer();
+        boolean multiSpeaker = properties.edit().multiSpeaker();
+        List<Shot> result = new ArrayList<>();
+        for (Shot shot : shots) {
+            ShotType type = shot.type();
+            if (renderer == Renderer.FFMPEG && type == ShotType.KINETIC) {
+                result.add(sourceFrom(shot).withType(ShotType.SPEAKER).withKinetic(null).withFocus(null));
+                continue;
+            }
+            if (renderer == Renderer.KINETIC
+                    && (type == ShotType.CODE || type == ShotType.DIALOGUE_2UP || type == ShotType.DIALOGUE_3UP
+                            || type == ShotType.MIXED)) {
+                result.add(sourceFrom(shot).withType(ShotType.SPEAKER).withKinetic(null).withFocus(null));
+                continue;
+            }
+            if (!multiSpeaker && (type == ShotType.DIALOGUE_2UP || type == ShotType.DIALOGUE_3UP)) {
+                result.add(sourceFrom(shot).withType(ShotType.SPEAKER).withFocus(null));
+                continue;
+            }
+            result.add(shot);
         }
         return result;
     }

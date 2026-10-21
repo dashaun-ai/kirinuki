@@ -745,9 +745,11 @@ textarea { resize: vertical; }
 }
 .shot-block { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.05em; }
 .shot-time { font-family: var(--mono); font-size: 10.5px; color: var(--sub); }
+.shot-type { font-family: var(--mono); font-size: 10.5px; color: var(--accent); margin-left: 6px; }
 .shot-desc { font-size: 12.8px; color: var(--ink); margin-top: 2px; }
 .de-note { display: flex; gap: 8px; font-size: 12.5px; color: var(--sub); margin-bottom: 14px; align-items: flex-start; }
 .de-note .ok-dot { color: var(--green); }
+.de-config { font-family: var(--mono); font-size: 11px; color: var(--sub); margin-bottom: 10px; }
 .de-status-line { font-family: var(--mono); font-size: 11px; color: var(--sub); margin-top: 12px; }
 .de-render-state { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-weight: 500; }
 

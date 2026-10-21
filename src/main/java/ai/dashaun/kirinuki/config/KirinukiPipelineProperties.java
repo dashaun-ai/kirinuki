@@ -133,7 +133,16 @@ public record KirinukiPipelineProperties(
             @DefaultValue("${user.home}/.kimi-code/plugins/managed/shenghua/skill") String kineticSkillDir,
             @DefaultValue("${user.home}/.kimi-code/plugins/managed/shenghua/skill/examples/kits/northwind") String kineticKit,
             @DefaultValue("kinetic") String kineticTemplate,
-            @DefaultValue Assets assets) {
+            @DefaultValue Assets assets,
+            @DefaultValue("HYBRID") Renderer renderer,
+            @DefaultValue("true") boolean multiSpeaker,
+            @DefaultValue("30m") Duration renderTimeout) {
+
+        public enum Renderer {
+            HYBRID,
+            FFMPEG,
+            KINETIC
+        }
 
         public record Assets(
                 @DefaultValue("commons.wikimedia.org,upload.wikimedia.org,spring.io") List<String> allowedHosts,
